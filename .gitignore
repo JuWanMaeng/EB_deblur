@@ -2,7 +2,7 @@
 # ignore these folders
 /.idea
 /.eggs
-/basicsr.egg_info
+/basicsr.egg-info
 /logs
 /ptlflow_logs
 /results
@@ -35,4 +35,6 @@
 *.png
 *.npy
 *.pth
+
+basicsr/version.py
 
