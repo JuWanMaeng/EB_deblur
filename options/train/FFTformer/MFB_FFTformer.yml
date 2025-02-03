@@ -1,0 +1,109 @@
+name: MFB_FFTformer_66
+model_type: ImageRestorationModel
+scale: 1
+num_gpu: 4
+manual_seed: 42
+
+datasets:
+  train:
+    name: gopro-train
+    type: Multi_Flow_Blur_dataset
+    dataroot_gt: /workspace/FFTformer/datasets/multi_flow_6/train_gopro.txt
+    dataroot_lq: /workspace/FFTformer/datasets/multi_flow_6/train_gopro.txt
+    filename_tmpl: '{}'
+    io_backend:
+      type: disk
+
+    gt_size: 224
+    use_flip: true
+    use_rot: true
+
+    # data loader
+    use_shuffle: true
+    num_worker_per_gpu: 2
+    batch_size_per_gpu: 2
+    dataset_enlarge_ratio: 1
+    prefetch_mode: ~
+
+  val:
+    name: gopro-test
+    type: Multi_Flow_Blur_dataset
+    dataroot_gt: /workspace/FFTformer/datasets/multi_flow_6/val_gopro.txt
+    dataroot_lq: /workspace/FFTformer/datasets/multi_flow_6/val_gopro.txt
+    io_backend:
+      type: disk
+
+
+network_g:
+  type: fftformer
+  inp_channels: 21
+  out_channels: 3
+  dim: 48
+  num_blocks: [6,6,12]
+  num_refinement_blocks: 4
+  ffn_expansion_factor: 3
+  bias: False
+
+
+# path
+path:
+  pretrain_network_g: ~
+  strict_load_g:
+  resume_state: ~
+
+# training settings
+train:
+  optim_g:
+    type: AdamW
+    lr: !!float 1e-4
+    weight_decay: !!float 1e-4
+    betas: [0.9, 0.9]
+
+  scheduler:
+    type: TrueCosineAnnealingLR
+    T_max: 1000000
+    eta_min: !!float 1e-7
+
+  total_iter: 1200000
+  warmup_iter: -1 # no warm up
+
+  # losses
+  pixel_opt:
+    type: L1Loss
+    loss_weight: 1.0
+    reduction: mean
+
+  fft_loss_opt:
+    type: FFTLoss
+    loss_weight: 0.1
+    reduction: mean
+
+# validation settings
+val:
+  val_freq: !!float 5000
+  save_img: true
+
+
+  metrics:
+    psnr: # metric name, can be arbitrary
+      type: calculate_psnr
+      crop_border: 0
+      test_y_channel: false
+    # ssim:
+    #   type: calculate_ssim
+    #   crop_border: 0
+    #   test_y_channel: false
+
+# logging settings
+logger:
+  print_freq: 1000
+  save_checkpoint_freq: !!float 5000
+  use_tb_logger: true
+  wandb:
+    project: ~
+    resume_id: ~
+
+# dist training settings
+dist_params:
+  backend: nccl
+  port: 29500

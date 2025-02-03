@@ -1,0 +1,7 @@
+/workspace/data/results/Gopro/single/000001/4.png
+/workspace/data/results/Gopro/single/000101/4.png
+/workspace/data/results/Gopro/single/000301/4.png
+/workspace/data/results/Gopro/single/000401/4.png
+/workspace/data/results/Gopro/single/000501/4.png
+/workspace/data/results/Gopro/single/000570/4.png
+/workspace/data/results/Gopro/single/000672/4.png

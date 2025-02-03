@@ -1,0 +1,66 @@
+# general settings
+name: EFNet_train_GT_test_gen
+model_type: ImageEventRestorationModel
+scale: 1
+num_gpu:  2
+manual_seed: 10
+
+datasets:
+  val:
+    name: gopro-bestmodel-test
+    type: H5ImageDataset
+
+    dataroot: /workspace/data/GOPRO/test
+
+    # add
+    norm_voxel: true
+    return_voxel: true
+    return_gt_frame: true
+    return_mask: true 
+    return_gen_event: true
+    use_mask: false
+
+    return_gen_event: true
+
+    crop_size: ~
+    use_flip: false
+    use_rot: false
+    io_backend:
+      type: h5
+
+dataset_name: GoPro
+
+# network structures
+network_g:
+  type: EFNet
+  wf: 64 
+  fuse_before_downsample: true
+
+# path
+path:
+  pretrain_network_g: /workspace/FFTformer/pretrain_model/EFNet.pth
+  strict_load_g: true
+  resume_state: ~
+  root: /workspace/FFTformer  # set this option ONLY in TEST!!!
+
+# validation settings
+val:
+  save_img: true
+  grids: ~
+  crop_size: ~
+  rgb2bgr: false # to my h5 data, its false
+
+  metrics:
+    psnr: # metric name, can be arbitrary
+      type: calculate_psnr
+      crop_border: 0
+      test_y_channel: false
+    ssim:
+      type: calculate_ssim
+      crop_border: 0
+      test_y_channel: false
+
+# dist training settings
+dist_params:
+  backend: nccl
+  port: 29500
