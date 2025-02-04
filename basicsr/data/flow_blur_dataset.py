@@ -3,7 +3,7 @@ from torchvision.transforms.functional import normalize
 
 from basicsr.utils import FileClient, imfrombytes, img2tensor
 from basicsr.data.transforms import augment
-from ptlflow.utils import flow_utils
+# from ptlflow.utils import flow_utils
 
 import random
 import numpy as np
