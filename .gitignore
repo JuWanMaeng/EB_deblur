@@ -36,5 +36,5 @@
 *.npy
 *.pth
 
-basicsr/version.py
+
 
