@@ -34,24 +34,19 @@ def caculate_PSNR(sharp_path, blur_path):
 if __name__ == '__main__':
 
     #### GoPro ####
-    mother_path = '/workspace/FFTformer/results/Gopro/SixFlow_FFTformer_580k_test'
+    mother_path = '/workspace/data/FFTformer/results/EB_NAFNet_dit/visualization/EB_NAFNet_dit'
     output_folders = os.listdir(mother_path)
     output_folders.sort()
     total_psnr = 0
 
     for scene in tqdm(output_folders,ncols=80):
-    #     output_img = os.path.join(mother_path,scene,'out.png')
-    #     sharp_path = f'/workspace/data/Gopro_my/test/{scene}/sharp/{scene}.png'
-    #     total_psnr+= caculate_PSNR(sharp_path, output_img)
-
-    # print(f'psnr:{round(total_psnr,3) / len(output_folders)}')
-
-        output_img = os.path.join(mother_path,scene)
-        img_num = scene[:-4]
-        sharp_path = f'/workspace/data/Gopro_my25/test/{img_num}/sharp/{img_num}.png'
-        total_psnr+= caculate_PSNR(sharp_path, output_img)
-
-    print(f'psnr:{round(total_psnr,3) / len(output_folders)}')
+        if 'gt' in scene:
+            continue
+        else:
+            output_img = os.path.join(mother_path,scene)
+            sharp_path = output_img.replace('.png', '_gt.png')
+            total_psnr+= caculate_PSNR(sharp_path, output_img)
+    print(total_psnr / (len(output_folders)//2))
 
 
     #### GoPro ####

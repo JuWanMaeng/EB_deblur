@@ -50,7 +50,7 @@ def main():
         rgb2bgr = opt['val'].get('rgb2bgr', True)
         # wheather use uint8 image to compute metrics
         use_image = opt['val'].get('use_image', True)
-        results = model.validation(
+        results = model.custom_validation(
             test_loader,
             current_iter=opt['name'],
             tb_logger=None,
@@ -60,5 +60,5 @@ def main():
 
 if __name__ == '__main__':
     import os
-    os.environ['CUDA_VISIBLE_DEVICES'] = '1'
+    os.environ['CUDA_VISIBLE_DEVICES'] = '3'
     main()

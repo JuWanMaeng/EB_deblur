@@ -1,8 +1,8 @@
 # general settings
-name: EB_NAFNet_debug
+name: EB_NAFNet_dit
 model_type: ImageEventRestorationModel
 scale: 1
-num_gpu:  4 #4
+num_gpu:  1
 manual_seed: 10
 
 datasets:
@@ -38,7 +38,7 @@ network_g:
 
 # path
 path:
-  pretrain_network_g: /workspace/FFTformer/pretrain_model/EB_NAFNet_best.pth
+  pretrain_network_g: /workspace/data/FFTformer/experiments/EB_NAFNet_dit/models/net_g_80000.pth
   strict_load_g: true
   resume_state: ~
   root: /workspace/FFTformer  # set this option ONLY in TEST!!!
