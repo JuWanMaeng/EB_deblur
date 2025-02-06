@@ -268,6 +268,8 @@ def main():
 
             data_time = time.time()
             iter_time = time.time()
+
+
             # train_data = prefetcher.next()
         # end of iter
         epoch += 1
