@@ -32,8 +32,8 @@ def main():
     parser = argparse.ArgumentParser(description='Single Image Motion Deblurring using Restormer')
 
     parser.add_argument('--result_dir', default='./results/HIDE', type=str, help='Directory for results')
-    parser.add_argument('--weights', default='/workspace/FFTformer/pretrain_model/EB_NAFNet_gen_best.pth', type=str, help='Path to weights')
-    parser.add_argument('--dataset', default='NAFNet_event_gen_deug', type=str, help='Test Dataset') # ['GoPro', 'HIDE', 'RealBlur_J', 'RealBlur_R']
+    parser.add_argument('--weights', default='/workspace/data/FFTformer/experiments/EB_NAFNet_dit/models/net_g_190000.pth', type=str, help='Path to weights')
+    parser.add_argument('--dataset', default='EBNAFNet_dit', type=str, help='Test Dataset') # ['GoPro', 'HIDE', 'RealBlur_J', 'RealBlur_R']
 
     args = parser.parse_args()
 
@@ -109,10 +109,10 @@ def main():
 
             event = torch.from_numpy(event.transpose(2,0,1)).unsqueeze(0).float().cuda()
 
-            threshold = 0.08
+            # threshold = 0.08
 
-            # 절대값이 threshold 이하인 값들을 0으로 설정
-            event[torch.abs(event) <= threshold] = 0
+            # # 절대값이 threshold 이하인 값들을 0으로 설정
+            # event[torch.abs(event) <= threshold] = 0
 
 
             input_ = torch.cat([input_tensor,event],dim=1)
@@ -165,5 +165,5 @@ def main():
 
 
 if __name__ == '__main__':
-    os.environ['CUDA_VISIBLE_DEVICES']='1'
+    os.environ['CUDA_VISIBLE_DEVICES']='3'
     main()
