@@ -38,14 +38,14 @@ network_g:
 
 # path
 path:
-  pretrain_network_g: /workspace/data/FFTformer/experiments/EB_NAFNet_dit/models/net_g_80000.pth
+  pretrain_network_g: /workspace/data/FFTformer/experiments/EB_NAFNet_dit/models/net_g_195000.pth
   strict_load_g: true
   resume_state: ~
   root: /workspace/FFTformer  # set this option ONLY in TEST!!!
 
 # validation settings
 val:
-  save_img: true
+  save_img: false
   grids: ~
   crop_size: ~
   rgb2bgr: false # to my h5 data, its false

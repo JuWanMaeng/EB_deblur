@@ -1,5 +1,5 @@
 # general settings
-name: EB_NAFNet_dit
+name: EB_NAFNet_dit_threshold
 model_type: ImageEventRestorationModel
 scale: 1
 num_gpu:  2
@@ -32,7 +32,7 @@ datasets:
 
     # data loader settings
     use_shuffle: true
-    num_worker_per_gpu: 1
+    num_worker_per_gpu: 2
     batch_size_per_gpu: 8 # 4 for 2080, 8 for titan
 
 
@@ -82,10 +82,10 @@ train:
 
   scheduler:
     type: TrueCosineAnnealingLR
-    T_max: 600000
+    T_max: 500000
     eta_min: !!float 1e-7
 
-  total_iter: 600000
+  total_iter: 500000
   warmup_iter: -1 # no warm up
 
   # losses
