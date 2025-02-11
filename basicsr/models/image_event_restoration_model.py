@@ -116,14 +116,13 @@ class ImageEventRestorationModel(BaseModel):
                 logger = get_root_logger()
                 logger.warning(f'Params {k} will not be optimized.')
         # print(optim_params)
-        ratio = 0.1
 
         optim_type = train_opt['optim_g'].pop('type')
         if optim_type == 'Adam':
-            self.optimizer_g = torch.optim.Adam([{'params': optim_params}, {'params': optim_params_lowlr, 'lr': train_opt['optim_g']['lr'] * ratio}],
+            self.optimizer_g = torch.optim.Adam([{'params': optim_params}, {'params': optim_params_lowlr, 'lr': train_opt['optim_g']['lr'] }],
                                                 **train_opt['optim_g'])
         elif optim_type == 'AdamW':
-            self.optimizer_g = torch.optim.AdamW([{'params': optim_params}, {'params': optim_params_lowlr, 'lr': train_opt['optim_g']['lr'] * ratio}],
+            self.optimizer_g = torch.optim.AdamW([{'params': optim_params}, {'params': optim_params_lowlr, 'lr': train_opt['optim_g']['lr'] }],
                                                 **train_opt['optim_g'])
 
         else:
@@ -136,10 +135,12 @@ class ImageEventRestorationModel(BaseModel):
         self.lq = data['frame'].to(self.device)
         if 'voxel' in data:
             self.voxel=data['voxel'].to(self.device) 
-        if 'mask' in data:
-            self.mask = data['mask'].to(self.device)
+
         if 'frame_gt' in data:
             self.gt = data['frame_gt'].to(self.device)
+
+        if 'gen_event' in data:
+            self.gen_event = data['gen_event'].to(self.device)
 
     def transpose(self, t, trans_idx):
         # print('transpose jt .. ', t.size())
@@ -154,163 +155,16 @@ class ImageEventRestorationModel(BaseModel):
             t = torch.flip(t, [3])
         return t
 
-    def grids_voxel(self):
-        b, c, h, w = self.voxel.size()
-        self.original_size_voxel = self.voxel.size()
-        assert b == 1
-        crop_size = self.opt['val'].get('crop_size')
-        # step_j = self.opt['val'].get('step_j', crop_size)
-        # step_i = self.opt['val'].get('step_i', crop_size)
-        ##adaptive step_i, step_j
-        num_row = (h - 1) // crop_size + 1
-        num_col = (w - 1) // crop_size + 1
-
-        import math
-        step_j = crop_size if num_col == 1 else math.ceil((w - crop_size) / (num_col - 1) - 1e-8)
-        step_i = crop_size if num_row == 1 else math.ceil((h - crop_size) / (num_row - 1) - 1e-8)
-
-        # print('step_i, stepj', step_i, step_j)
-        # exit(0)
-
-
-        parts = []
-        idxes = []
-
-        # cnt_idx = 0
-
-        i = 0  # 0~h-1
-        last_i = False
-        while i < h and not last_i:
-            j = 0
-            if i + crop_size >= h:
-                i = h - crop_size
-                last_i = True
-
-
-            last_j = False
-            while j < w and not last_j:
-                if j + crop_size >= w:
-                    j = w - crop_size
-                    last_j = True
-                # from i, j to i+crop_szie, j + crop_size
-                # print(' trans 8')
-                for trans_idx in range(self.opt['val'].get('trans_num', 1)):
-                    parts.append(self.transpose(self.voxel[:, :, i:i + crop_size, j:j + crop_size], trans_idx))
-                    idxes.append({'i': i, 'j': j, 'trans_idx': trans_idx})
-                    # cnt_idx += 1
-                j = j + step_j
-            i = i + step_i
-        if self.opt['val'].get('random_crop_num', 0) > 0:
-            for _ in range(self.opt['val'].get('random_crop_num')):
-                import random
-                i = random.randint(0, h-crop_size)
-                j = random.randint(0, w-crop_size)
-                trans_idx = random.randint(0, self.opt['val'].get('trans_num', 1) - 1)
-                parts.append(self.transpose(self.voxel[:, :, i:i + crop_size, j:j + crop_size], trans_idx))
-                idxes.append({'i': i, 'j': j, 'trans_idx': trans_idx})
-
-
-        self.origin_voxel = self.voxel
-        self.voxel = torch.cat(parts, dim=0)
-        print('----------parts voxel .. ', len(parts), self.voxel.size())
-        self.idxes = idxes
-
-
-    def grids(self):
-        b, c, h, w = self.lq.size()  # lq is after data augment (for example, crop, if have)
-        self.original_size = self.lq.size()
-        assert b == 1
-        crop_size = self.opt['val'].get('crop_size')
-        # step_j = self.opt['val'].get('step_j', crop_size)
-        # step_i = self.opt['val'].get('step_i', crop_size)
-        ##adaptive step_i, step_j
-        num_row = (h - 1) // crop_size + 1
-        num_col = (w - 1) // crop_size + 1
-
-        import math
-        step_j = crop_size if num_col == 1 else math.ceil((w - crop_size) / (num_col - 1) - 1e-8)
-        step_i = crop_size if num_row == 1 else math.ceil((h - crop_size) / (num_row - 1) - 1e-8)
-
-
-        # print('step_i, stepj', step_i, step_j)
-        # exit(0)
-
-
-        parts = []
-        idxes = []
-
-        # cnt_idx = 0
-
-        i = 0  # 0~h-1
-        last_i = False
-        while i < h and not last_i:
-            j = 0
-            if i + crop_size >= h:
-                i = h - crop_size
-                last_i = True
-
-
-            last_j = False
-            while j < w and not last_j:
-                if j + crop_size >= w:
-                    j = w - crop_size
-                    last_j = True
-                # from i, j to i+crop_szie, j + crop_size
-                # print(' trans 8')
-                for trans_idx in range(self.opt['val'].get('trans_num', 1)):
-                    parts.append(self.transpose(self.lq[:, :, i:i + crop_size, j:j + crop_size], trans_idx))
-                    idxes.append({'i': i, 'j': j, 'trans_idx': trans_idx})
-                    # cnt_idx += 1
-                j = j + step_j
-            i = i + step_i
-        if self.opt['val'].get('random_crop_num', 0) > 0:
-            for _ in range(self.opt['val'].get('random_crop_num')):
-                import random
-                i = random.randint(0, h-crop_size)
-                j = random.randint(0, w-crop_size)
-                trans_idx = random.randint(0, self.opt['val'].get('trans_num', 1) - 1)
-                parts.append(self.transpose(self.lq[:, :, i:i + crop_size, j:j + crop_size], trans_idx))
-                idxes.append({'i': i, 'j': j, 'trans_idx': trans_idx})
-
-
-        self.origin_lq = self.lq
-        self.lq = torch.cat(parts, dim=0)
-        # print('parts .. ', len(parts), self.lq.size())
-        self.idxes = idxes
-
-    def grids_inverse(self):
-        preds = torch.zeros(self.original_size).to(self.device)
-        b, c, h, w = self.original_size
-
-        print('...', self.device)
-
-        count_mt = torch.zeros((b, 1, h, w)).to(self.device)
-        crop_size = self.opt['val'].get('crop_size')
-
-        for cnt, each_idx in enumerate(self.idxes):
-            i = each_idx['i']
-            j = each_idx['j']
-            trans_idx = each_idx['trans_idx']
-            preds[0, :, i:i + crop_size, j:j + crop_size] += self.transpose_inverse(self.output[cnt, :, :, :].unsqueeze(0), trans_idx).squeeze(0)
-            count_mt[0, 0, i:i + crop_size, j:j + crop_size] += 1.
-
-        self.output = preds / count_mt
-        self.lq = self.origin_lq
-        self.voxel = self.origin_voxel
-
 
     def optimize_parameters(self, current_iter):
         self.optimizer_g.zero_grad()
 
-        if self.opt['datasets']['train'].get('use_mask'):
-            preds = self.net_g(x = self.lq, event = self.voxel, mask = self.mask)
+        event_preds = self.net_r(self.gen_event)
 
-        elif self.opt['datasets']['train'].get('return_ren'):
-            preds = self.net_g(x = self.lq, event = self.voxel, ren = self.ren)
 
-        else:
-            preds = self.net_g(self.lq)
-            # preds = self.net_g(x = self.lq, event = self.voxel)
+        preds = self.net_g(self.lq)
+
+
 
         if not isinstance(preds, list):
             preds = [preds]
@@ -346,6 +200,10 @@ class ImageEventRestorationModel(BaseModel):
             l_fft = self.cri_fft(preds[-1], self.gt)
             l_total += l_fft
             loss_dict['l_fft'] = l_fft         
+        
+        if self.cri_refine:
+            l_refine = self.cri_refine()
+
 
 
         l_total = l_total + 0 * sum(p.sum() for p in self.net_g.parameters())

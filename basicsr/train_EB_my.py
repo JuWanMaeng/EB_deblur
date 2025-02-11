@@ -227,11 +227,11 @@ def main():
                 current_iter, warmup_iter=opt['train'].get('warmup_iter', -1)
             )
 
-            lq = train_data['frame']
-            # event = train_data['voxel']
-            event = train_data['gen_event']
-            lq = torch.cat([lq, event], dim=1)
-            train_data['frame'] = lq
+            # lq = train_data['frame']
+            # # event = train_data['voxel']
+            # event = train_data['gen_event']
+            # lq = torch.cat([lq, event], dim=1)
+            # train_data['frame'] = lq
 
             # training
             model.feed_data(train_data)
