@@ -38,7 +38,7 @@ network_g:
 
 # path
 path:
-  pretrain_network_g: /workspace/data/FFTformer/experiments/EB_NAFNet_dit/models/net_g_195000.pth
+  pretrain_network_g: /workspace/data/FFTformer/experiments/EB_NAFNet_threshold/models/net_g_130000.pth
   strict_load_g: true
   resume_state: ~
   root: /workspace/FFTformer  # set this option ONLY in TEST!!!
