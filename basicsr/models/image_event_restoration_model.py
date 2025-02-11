@@ -432,7 +432,7 @@ class ImageEventRestorationModel(BaseModel):
             
             # event = val_data['voxel']
             event = val_data['gen_event']
-            # event = torch.flip(event,dims=[1])
+            event = torch.flip(event,dims=[1])
 
             lq = torch.cat([lq,event],dim=(1))
             val_data['frame'] = lq
@@ -487,7 +487,7 @@ class ImageEventRestorationModel(BaseModel):
 
             if with_metrics:
                 # calculate metrics
-                with open('gopro.txt', 'a') as f:
+                with open('gopro_reversed.txt', 'a') as f:
                     scores = []
                     opt_metric = deepcopy(self.opt['val']['metrics'])
                     if use_image:

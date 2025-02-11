@@ -37,4 +37,7 @@
 *.pth
 
 event_data_vis.ipynb
+/pretrained_model
 
+gopro.txt
+gopro_reversed.txt
