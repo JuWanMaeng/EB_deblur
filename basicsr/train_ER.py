@@ -9,7 +9,7 @@ from os import path as osp
 
 from basicsr.data import create_dataloader, create_dataset
 from basicsr.data.data_sampler import EnlargedSampler
-# from basicsr.data.prefetch_dataloader import CPUPrefetcher, CUDAPrefetcher
+from basicsr.data.prefetch_dataloader import CPUPrefetcher, CUDAPrefetcher
 from basicsr.models import create_model
 from basicsr.utils import (MessageLogger, check_resume, get_env_info,
                            get_root_logger, get_time_str, init_tb_logger,
@@ -22,7 +22,7 @@ from basicsr.utils.options import dict2str, parse
 def parse_options(is_train=True):
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        '-opt', type=str, default='/workspace/FFTformer/options/train/NAFNet/EB_NAFNet.yml', help='Path to option YAML file.')
+        '-opt', type=str, required=True, help='Path to option YAML file.')
     parser.add_argument(
         '--launcher',
         choices=['none', 'pytorch', 'slurm'],
@@ -201,18 +201,6 @@ def main():
     # create message logger (formatted outputs)
     msg_logger = MessageLogger(opt, current_iter, tb_logger)
 
-    # dataloader prefetcher
-    # prefetch_mode = opt['datasets']['train'].get('prefetch_mode')
-    # if prefetch_mode is None or prefetch_mode == 'cpu':
-    #     prefetcher = CPUPrefetcher(train_loader)
-    # elif prefetch_mode == 'cuda':
-    #     prefetcher = CUDAPrefetcher(train_loader, opt)
-    #     logger.info(f'Use {prefetch_mode} prefetch dataloader')
-    #     if opt['datasets']['train'].get('pin_memory') is not True:
-    #         raise ValueError('Please set pin_memory=True for CUDAPrefetcher.')
-    # else:
-    #     raise ValueError(f'Wrong prefetch_mode {prefetch_mode}.'
-    #                      "Supported ones are: None, 'cuda', 'cpu'.")
 
     # training
     logger.info(
@@ -223,39 +211,8 @@ def main():
     # for epoch in range(start_epoch, total_epochs + 1):
     epoch = start_epoch
 
-#### prefecter ####
-    # while current_iter <= total_iters:
-    #     train_sampler.set_epoch(epoch)
-    #     prefetcher.reset()
-    #     train_data = prefetcher.next()
 
-    #     while train_data is not None:
-    #         data_time = time.time() - data_time
-
-    #         current_iter += 1
-    #         if current_iter > total_iters:
-    #             break
-    #         # update learning rate
-    #         model.update_learning_rate(
-    #             current_iter, warmup_iter=opt['train'].get('warmukp_iter', -1))
-            
-    #         lq = train_data['frame']
-    #         # event = train_data['voxel']
-    #         event = train_data['gen_event']
-
-    #         lq = torch.cat([lq,event],dim=(1))
-    #         train_data['frame'] = lq
-
-    #         # training
-    #         model.feed_data(train_data)
-    #         result_code = model.optimize_parameters(current_iter)
-    #         # if result_code == -1 and tb_logger:
-    #         #     print('loss explode .. ')
-    #         #     exit(0)
-    #         iter_time = time.time() - iter_time
-
-
-    for epoch in range(start_epoch, total_epochs + 1):
+    while current_iter <= total_iters:
         train_sampler.set_epoch(epoch)
         
         for train_data in train_loader:
@@ -269,12 +226,6 @@ def main():
             model.update_learning_rate(
                 current_iter, warmup_iter=opt['train'].get('warmup_iter', -1)
             )
-
-            lq = train_data['frame']
-            # event = train_data['voxel']
-            event = train_data['gen_event']
-            lq = torch.cat([lq, event], dim=1)
-            train_data['frame'] = lq
 
             # training
             model.feed_data(train_data)
@@ -311,6 +262,8 @@ def main():
 
             data_time = time.time()
             iter_time = time.time()
+
+
             # train_data = prefetcher.next()
         # end of iter
         epoch += 1
@@ -335,6 +288,6 @@ def main():
 
 if __name__ == '__main__':
     import os
-    os.environ['CUDA_VISIBLE_DEVICES']='3'
+    os.environ['CUDA_VISIBLE_DEVICES']='0,1,2,3'
     os.environ['GRPC_POLL_STRATEGY']='epoll1'
     main()

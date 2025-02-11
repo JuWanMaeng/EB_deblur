@@ -1,8 +1,7 @@
-# general settings
-name: EB_NAFNet_1e-3
-model_type: ImageEventRestorationModel
+name: Event_Refinement
+model_type: EventRefinementModel
 scale: 1
-num_gpu:  4
+num_gpu: 4
 manual_seed: 10
 
 datasets:
@@ -79,10 +78,7 @@ path:
   pretrain_network_g: ~
   strict_load_g: true
   resume_state: ~
-  
-  pretrain_network_r: ~
-  strict_load_g: true
-  resume_state: ~
+
 
 
 # training settings
@@ -95,27 +91,22 @@ train:
 
   scheduler:
     type: TrueCosineAnnealingLR
-    T_max: 500000
+    T_max: 300000
     eta_min: !!float 1e-7
 
-  total_iter: 500000
+  total_iter: 300000
   warmup_iter: -1 # no warm up
 
   # losses
   pixel_opt:
-    type: PSNRLoss
-    loss_weight: 1
-    reduction: mean
-  refine_opt:
-    type: mse
+    type: MSELoss
     loss_weight: 1
     reduction: mean
 
-    
 
 # validation settings
 val:
-  val_freq: !!float 5000
+  val_freq: !!float 20000
   save_img: false
 
 
