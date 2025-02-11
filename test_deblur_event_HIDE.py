@@ -29,7 +29,7 @@ def main():
 
     parser.add_argument('--result_dir', default='./results/HIDE', type=str, help='Directory for results')
     parser.add_argument('--weights', default='/workspace/FFTformer/pretrained_model/EBNAFNet_1e-3/105K.pth', type=str, help='Path to weights')
-    parser.add_argument('--dataset', default='EBNAFNet_dit', type=str, help='Test Dataset') # ['GoPro', 'HIDE', 'RealBlur_J', 'RealBlur_R']
+    parser.add_argument('--dataset', default='EB_NAFNet', type=str, help='Test Dataset') # ['GoPro', 'HIDE', 'RealBlur_J', 'RealBlur_R']
 
     args = parser.parse_args()
 
@@ -105,9 +105,9 @@ def main():
 
             event = torch.from_numpy(event.transpose(2,0,1)).unsqueeze(0).float().cuda()
 
-            threshold = 0.05
-            # # 절대값이 threshold 이하인 값들을 0으로 설정
-            event[torch.abs(event) <= threshold] = 0
+            # threshold = 0.05
+            # # # 절대값이 threshold 이하인 값들을 0으로 설정
+            # event[torch.abs(event) <= threshold] = 0
 
 
             input_ = torch.cat([input_tensor,event],dim=1)
@@ -153,7 +153,6 @@ def main():
             psnr_score = caculate_PSNR(sharp_path, out_save_path)
             total_psnr += psnr_score
 
-    print(psnr.avg)
     print(total_psnr/len(files))
 
 

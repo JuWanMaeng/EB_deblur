@@ -4,8 +4,6 @@
 
 import os
 import numpy as np
-from glob import glob
-from natsort import natsorted
 from skimage import io
 import cv2
 from skimage.metrics import structural_similarity
@@ -105,10 +103,10 @@ def proc(filename):
 
 
 
-with open('/workspace/FFTformer/datasets/event_gen/realblur_j_gt.txt', 'r') as file:
+with open('/workspace/FFTformer/datasets/event_gen/realblur_r_gt.txt', 'r') as file:
     gt_list = [line.strip() for line in file]
 
-out_mother_path = '/workspace/FFTformer/results/RealBlur-J/EFNet'
+out_mother_path = 'results/RealBlur-R/NAFNet_1e-3'
 path_list = []
 for gt_path in gt_list:
     out_path = gt_path.replace('gt','blur')
