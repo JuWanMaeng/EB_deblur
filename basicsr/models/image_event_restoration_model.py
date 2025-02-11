@@ -48,7 +48,7 @@ class ImageEventRestorationModel(BaseModel):
             local_rank = os.environ.get('LOCAL_RANK', '0')
             if local_rank == '0':
                 wandb.init(project='promptir')
-                wandb.run.name = '(FFT)EB_FFTformer_threshold'
+                wandb.run.name = '(NAF)EB_NAFNet_R'
             self.wandb = True
         else:
             self.wandb = False
@@ -76,12 +76,23 @@ class ImageEventRestorationModel(BaseModel):
         else:
             self.cri_perceptual = None
 
-        if train_opt.get('fft_loss_opt'):
-            fft_loss_type = train_opt['fft_loss_opt'].pop('type')
-            cri_fft_cls = getattr(loss_module, fft_loss_type)
-            self.cri_fft = cri_fft_cls(**train_opt['fft_loss_opt']).to(self.device)
+        # define losses
+        if train_opt.get('refine_opt'):
+            self.pixel_type = train_opt['refine_opt'].pop('type')
+            # print('LOSS: pixel_type:{}'.format(self.pixel_type))
+            cri_pix_cls = getattr(loss_module, self.pixel_type)
+
+            self.cri_refine = cri_pix_cls(**train_opt['refine_opt']).to(
+                self.device)
         else:
-            self.cri_fft = None
+            self.cri_refine = None
+
+        # if train_opt.get('fft_loss_opt'):
+        #     fft_loss_type = train_opt['fft_loss_opt'].pop('type')
+        #     cri_fft_cls = getattr(loss_module, fft_loss_type)
+        #     self.cri_fft = cri_fft_cls(**train_opt['fft_loss_opt']).to(self.device)
+        # else:
+        #     self.cri_fft = None
 
         if self.cri_pix is None and self.cri_perceptual is None:
             raise ValueError('Both pixel and perceptual losses are None.')
