@@ -66,11 +66,24 @@ network_g:
   middle_blk_num: 1
   dec_blk_nums: [1, 1, 1, 1]
 
+# network structures
+network_r:
+  type: NAFNet
+  width: 64
+  enc_blk_nums: [1, 1, 1, 28]
+  middle_blk_num: 1
+  dec_blk_nums: [1, 1, 1, 1]
+
 # path
 path:
   pretrain_network_g: ~
   strict_load_g: true
   resume_state: ~
+  
+  pretrain_network_r: ~
+  strict_load_g: true
+  resume_state: ~
+
 
 # training settings
 train:

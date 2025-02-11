@@ -26,8 +26,17 @@ class ImageEventRestorationModel(BaseModel):
         self.net_g = self.model_to_device(self.net_g)
         self.print_network(self.net_g)
 
+        self.net_r = define_network(deepcopy(opt['network_r']))
+        self.net_r = self.model_to_device(self.net_r)
+        self.print_network(self.net_r)
+
         # load pretrained models
         load_path = self.opt['path'].get('pretrain_network_g', None)
+        if load_path is not None:
+            self.load_network(self.net_g, load_path,
+                              self.opt['path'].get('strict_load_g', True), param_key=self.opt['path'].get('param_key', 'params'))
+        # load pretrained models
+        load_path = self.opt['path'].get('pretrain_network_r', None)
         if load_path is not None:
             self.load_network(self.net_g, load_path,
                               self.opt['path'].get('strict_load_g', True), param_key=self.opt['path'].get('param_key', 'params'))
