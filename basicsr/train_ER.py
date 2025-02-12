@@ -1,3 +1,5 @@
+import os
+
 import argparse
 import datetime
 import logging
@@ -288,6 +290,6 @@ def main():
 
 if __name__ == '__main__':
     import os
-    os.environ['CUDA_VISIBLE_DEVICES']='0'
+    os.environ['CUDA_VISIBLE_DEVICES']='2,3'
     os.environ['GRPC_POLL_STRATEGY']='epoll1'
     main()

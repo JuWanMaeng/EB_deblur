@@ -1,7 +1,7 @@
-name: ImageEvent_Refinement
+name: ImageEvent_Refinement_L2_1e-4
 model_type: ImageEventRefinementModel
 scale: 1
-num_gpu: 1
+num_gpu: 2
 manual_seed: 10
 
 datasets:
@@ -77,8 +77,8 @@ path:
 train:
   optim_g:
     type: AdamW
-    lr: !!float 1e-3
-    weight_decay: !!float 1e-3
+    lr: !!float 1e-4
+    weight_decay: !!float 1e-4
     betas: [0.9, 0.9]
 
   scheduler:
