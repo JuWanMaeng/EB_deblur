@@ -132,16 +132,9 @@ class EventRefinementModel(BaseModel):
 
     def optimize_parameters(self, current_iter):
         self.optimizer_g.zero_grad()
+    
+        preds = self.net_g(self.gen_event)
 
-        if self.opt['datasets']['train'].get('use_mask'):
-            preds = self.net_g(x = self.lq, event = self.voxel, mask = self.mask)
-
-        elif self.opt['datasets']['train'].get('return_ren'):
-            preds = self.net_g(x = self.lq, event = self.voxel, ren = self.ren)
-
-        else:
-            preds = self.net_g(self.lq)
-            # preds = self.net_g(x = self.lq, event = self.voxel)
 
         if not isinstance(preds, list):
             preds = [preds]
@@ -167,7 +160,7 @@ class EventRefinementModel(BaseModel):
             
             else:
                 for pred in preds:
-                    l_pix += self.cri_pix(pred, self.gt)    
+                    l_pix += self.cri_pix(pred, self.voxel)    
 
             l_total += l_pix
             loss_dict['l_pix'] = l_pix
@@ -194,13 +187,12 @@ class EventRefinementModel(BaseModel):
         if current_iter % 10 ==0:
             local_rank = os.environ.get('LOCAL_RANK', '0')
             if local_rank == '0':
-                # wandb.log({'train_loss': l_total.item(), 'iter':current_iter})
                 wandb.log({'train_loss': loss_dict['l_pix'].item(), 'iter':current_iter})
 
     def test(self):
         self.net_g.eval()
         with torch.no_grad():
-            n = self.lq.size(0)  # n: batch size
+            n = self.gen_event.size(0)  # n: batch size
             outs = []
             m = self.opt['val'].get('max_minibatch', n)  # m is the minibatch, equals to batch size or mini batch size
             i = 0
@@ -209,20 +201,13 @@ class EventRefinementModel(BaseModel):
                 if j >= n:
                     j = n
 
-                    b, c, h, w = self.lq[i:j].shape
+                    b, c, h, w = self.gen_event[i:j].shape
                     h_n = (32 - h % 32) % 32
                     w_n = (32 - w % 32) % 32
-                    in_tensor = F.pad(self.lq[i:j], (0, w_n, 0, h_n), mode='reflect')
-                    self.lq = in_tensor
+                    in_tensor = F.pad(self.gen_event[i:j], (0, w_n, 0, h_n), mode='reflect')
+                    self.gen_event = in_tensor
 
-                if self.opt['datasets']['val'].get('use_mask'):
-                    pred = self.net_g(x = self.lq[i:j, :, :, :], event = self.voxel[i:j, :, :, :], mask = self.mask[i:j, :, :, :])  # mini batch all in 
-
-                elif self.opt['datasets']['val'].get('return_ren'):
-                    pred = self.net_g(x = self.lq[i:j, :, :, :], event = self.voxel[i:j, :, :, :], ren = self.ren[i:j,:])
-
-                else:
-                    pred = self.net_g(y = self.lq)
+                    pred = self.net_g(inp = self.gen_event)
                     # pred = self.net_g(x = self.lq[i:j, :, :, :], event = self.voxel[i:j, :, :, :])  # mini batch all in 
             
                 if isinstance(pred, list):
@@ -279,67 +264,25 @@ class EventRefinementModel(BaseModel):
             img_name = '{:06d}'.format(cnt)
 
             self.feed_data(val_data)
-            if self.opt['val'].get('grids') is not None:
-                self.grids()
-                self.grids_voxel()
-
             self.test()
-
-            if self.opt['val'].get('grids') is not None:
-                self.grids_inverse()
-
             visuals = self.get_current_visuals()
-            sr_img = tensor2img([visuals['result']], rgb2bgr=rgb2bgr)
 
-            if 'gt' in visuals:
-                gt_img = tensor2img([visuals['gt']], rgb2bgr=rgb2bgr)
-                del self.gt
 
             # tentative for out of GPU memory
-            del self.lq
+            del self.gen_event
             del self.output
             torch.cuda.empty_cache()
-
-            if save_img:
-                
-                if self.opt['is_train']:
-                    if cnt == 1: # visualize cnt=1 image every time
-                        save_img_path = osp.join(self.opt['path']['visualization'],
-                                                img_name,
-                                                f'{img_name}_{current_iter}.png')
-                        
-                        save_gt_img_path = osp.join(self.opt['path']['visualization'],
-                                                img_name,
-                                                f'{img_name}_{current_iter}_gt.png')
-                else:
-                    print('Save path:{}'.format(self.opt['path']['visualization']))
-                    print('Dataset name:{}'.format(dataset_name))
-                    print('Img_name:{}'.format(img_name))
-                    save_img_path = osp.join(
-                        self.opt['path']['visualization'], dataset_name,
-                        f'{img_name}.png')
-                    save_gt_img_path = osp.join(
-                        self.opt['path']['visualization'], dataset_name,
-                        f'{img_name}_gt.png')
-                    
-                imwrite(sr_img, save_img_path)
-                imwrite(gt_img, save_gt_img_path)
 
 
             # default setting
             if with_metrics:
                 # calculate metrics
                 opt_metric = deepcopy(self.opt['val']['metrics'])
-                if use_image:
-                    for name, opt_ in opt_metric.items():
-                        metric_type = opt_.pop('type')
-                        self.metric_results[name] += getattr(
-                            metric_module, metric_type)(sr_img, gt_img, **opt_)
-                else:
-                    for name, opt_ in opt_metric.items():
-                        metric_type = opt_.pop('type')
-                        self.metric_results[name] += getattr(
-                            metric_module, metric_type)(visuals['result'], visuals['gt'], **opt_)
+
+                for name, opt_ in opt_metric.items():
+                    metric_type = opt_.pop('type')
+                    self.metric_results[name] += getattr(
+                        metric_module, metric_type)(visuals['result'], visuals['gt'], **opt_)
 
 
 
@@ -367,9 +310,6 @@ class EventRefinementModel(BaseModel):
         if self.wandb:
             local_rank = os.environ.get('LOCAL_RANK', '0')
             if local_rank == '0':
-                value = value * 6
-                value = value + 55
-                value = value / 7
                 wandb.log({'val_loss': value, 'iter':current_iter})
             
         logger = get_root_logger()
@@ -380,10 +320,10 @@ class EventRefinementModel(BaseModel):
 
     def get_current_visuals(self):
         out_dict = OrderedDict()
-        out_dict['lq'] = self.lq.detach().cpu()
+        out_dict['lq'] = self.gen_event.detach().cpu()
         out_dict['result'] = self.output.detach().cpu()
-        if hasattr(self, 'gt'):
-            out_dict['gt'] = self.gt.detach().cpu()
+        if hasattr(self, 'voxel'):
+            out_dict['gt'] = self.voxel.detach().cpu()
         return out_dict
 
     def save(self, epoch, current_iter):
