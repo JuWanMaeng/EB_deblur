@@ -1,4 +1,4 @@
-name: Gopro_train
+name: Gopro_test
 model_type: EventRefinementModel
 scale: 1
 num_gpu: 4
@@ -44,7 +44,7 @@ path:
 
 # validation settings
 val:
-  save_img: true
+  save_img: false
   grids: ~
   crop_size: ~
   rgb2bgr: false # to my h5 data, its false

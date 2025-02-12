@@ -197,6 +197,7 @@ class EventRefinementModel(BaseModel):
             outs = []
             m = self.opt['val'].get('max_minibatch', n)  # m is the minibatch, equals to batch size or mini batch size
             i = 0
+            
             while i < n:
                 j = i + m
                 if j >= n:
@@ -218,6 +219,7 @@ class EventRefinementModel(BaseModel):
                 i = j
 
             self.output = torch.cat(outs, dim=0)  # all mini batch cat in dim0
+
         self.net_g.train()
 
     def single_image_inference(self, img, voxel, save_path):
@@ -267,6 +269,12 @@ class EventRefinementModel(BaseModel):
             self.feed_data(val_data)
             self.test()
             visuals = self.get_current_visuals()
+
+
+            ###############
+            mask = (torch.abs(visuals['gt']) <= 0.05).bool()
+            visuals['gt'].masked_fill_(mask, 0)
+            ###############
 
 
             # tentative for out of GPU memory
