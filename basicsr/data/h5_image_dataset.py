@@ -171,13 +171,13 @@ class H5ImageDataset(data.Dataset):
             raise IndexError
         seed = random.randint(0, 2 ** 32) if seed is None else seed
         item={}
-        # frame = self.get_frame(index)
+        frame = self.get_frame(index)
         # if self.return_gt_frame:
         #     frame_gt = self.get_gt_frame(index)
         #     frame_gt = self.transform_frame(frame_gt, seed, transpose_to_CHW=False)
 
         voxel = self.get_voxel(index)
-        # frame = self.transform_frame(frame, seed, transpose_to_CHW=False)  # to tensor
+        frame = self.transform_frame(frame, seed, transpose_to_CHW=False)  # to tensor
 
         gen_event = self.get_gen_event(index)  # [-1,1] , [6,H,W]
         # gen_event[np.abs(gen_event) <= self.threshold] = 0
@@ -191,8 +191,8 @@ class H5ImageDataset(data.Dataset):
         if self.return_gen_event:
             gen_event = torch.from_numpy(gen_event)
             item['gen_event'] = self.transform_gen_event(gen_event,seed)
-        # if self.return_frame:
-        #     item['frame'] = frame
+        if self.return_frame:
+            item['frame'] = frame
         # if self.return_gt_frame:
         #     item['frame_gt'] = frame_gt
         if self.return_voxel:
