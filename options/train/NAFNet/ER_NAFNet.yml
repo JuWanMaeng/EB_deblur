@@ -98,7 +98,7 @@ train:
 
 # validation settings
 val:
-  val_freq: !!float 10000
+  val_freq: !!float 5000
   save_img: false
 
   metrics:
@@ -114,7 +114,7 @@ val:
 # logging settings
 logger:
   print_freq: 1000
-  save_checkpoint_freq: !!float 10000
+  save_checkpoint_freq: !!float 5000
   use_tb_logger: true
   wandb:
     project: ~
