@@ -6,6 +6,7 @@ from os import path as osp
 from tqdm import tqdm
 import torch.nn.functional as F
 import os, wandb
+import numpy as np
 
 from basicsr.models.archs import define_network
 from basicsr.models.base_model import BaseModel
@@ -283,8 +284,14 @@ class EventRefinementModel(BaseModel):
                     metric_type = opt_.pop('type')
                     self.metric_results[name] += getattr(
                         metric_module, metric_type)(visuals['result'], visuals['gt'], **opt_)
-
-
+                    
+            if save_img:
+                save_img_path = osp.join(self.opt['path']['visualization'],
+                                                val_data['path'][0])
+                os.makedirs(save_img_path, exist_ok=True)
+                output_event = visuals['result'][0].numpy()
+                np.save(f'{save_img_path}/out.npy', output_event)
+            
 
             pbar.update(1)
             # pbar.set_description(f'Test {img_name}')

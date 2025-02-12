@@ -17,6 +17,8 @@
 /venv
 /cache
 /my
+/experiments
+/deblur_results
 
 **/.ipynb_checkpoints/
 .vscode/

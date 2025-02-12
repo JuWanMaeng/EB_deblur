@@ -35,6 +35,9 @@ def calculate_event_rmse(img1, img2, crop_border=0, input_order='CHW'):
         img1 = img1[crop_border:-crop_border, crop_border:-crop_border, :]
         img2 = img2[crop_border:-crop_border, crop_border:-crop_border, :]
     
+    max_val = np.max(np.abs(img1))
+    img1 = img1/max_val
+
     # [-1, 1] 범위를 [0, 1]로 정규화
     img1 = (img1 + 1) / 2.0
     img2 = (img2 + 1) / 2.0
