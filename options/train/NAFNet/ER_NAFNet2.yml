@@ -1,7 +1,7 @@
-name: ImageEvent_Refinement
+name: ImageEvent_Refinement_L2_1e-4
 model_type: ImageEventRefinementModel
 scale: 1
-num_gpu: 1
+num_gpu: 2
 manual_seed: 10
 
 datasets:
