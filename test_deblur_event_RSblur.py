@@ -14,8 +14,6 @@ import torch
 import torch.nn.functional as F
 import Motion_Deblurring.utils as utils
 
-from natsort import natsorted
-from glob import glob
 from basicsr.models.archs.NAFNet_arch import NAFNet
 from basicsr.models.archs.fftformer_arch import fftformer
 from basicsr.models.archs.fftformer_cross_arch import fftformer_cross
@@ -23,8 +21,7 @@ from basicsr.models.archs.EFNet_arch import EFNet
 from skimage import img_as_ubyte
 from pdb import set_trace as stx
 from metric import caculate_PSNR,caculate_PSNR_from_tensor
-from val_utils import AverageMeter
-from ptlflow.utils import flow_utils
+
 
 
 
@@ -32,15 +29,15 @@ def main():
     parser = argparse.ArgumentParser(description='Single Image Motion Deblurring using Restormer')
 
     parser.add_argument('--result_dir', default='./results/RSblur', type=str, help='Directory for results')
-    parser.add_argument('--weights', default='/workspace/FFTformer/pretrain_model/EFNet_gen.pth', type=str, help='Path to weights')
+    parser.add_argument('--weights', default='pretrained_model/EBNAFNet_1e-3/150K.pth', type=str, help='Path to weights')
     parser.add_argument('--dataset', default='EFNet_gen', type=str, help='Test Dataset') # ['GoPro', 'HIDE', 'RealBlur_J', 'RealBlur_R']
 
     args = parser.parse_args()
 
     ####### Load yaml #######
     # yaml_file = '/workspace/FFTformer/options/test/EB_FFTformer.yml'
-    # yaml_file = '/workspace/FFTformer/options/test/EB_NAFNet.yml'
-    yaml_file = '/workspace/FFTformer/options/test/EFNet_gen.yml'
+    yaml_file = '/workspace/FFTformer/options/test/EB_NAFNet.yml'
+    # yaml_file = '/workspace/FFTformer/options/test/EFNet_gen.yml'
     import yaml
 
     try:
@@ -52,9 +49,9 @@ def main():
 
     s = x['network_g'].pop('type')
     ##########################
-    # model_restoration = NAFNet(**x['network_g'])
+    model_restoration = NAFNet(**x['network_g'])
     # model_restoration = fftformer(**x['network_g'])
-    model_restoration = EFNet(**x['network_g'])
+    # model_restoration = EFNet(**x['network_g'])
 
     checkpoint = torch.load(args.weights)
     model_restoration.load_state_dict(checkpoint['params'])
@@ -79,7 +76,6 @@ def main():
     print(len(files))
 
 
-    psnr = AverageMeter()
     total_psnr = 0
     not_found = 0
 
@@ -135,7 +131,7 @@ def main():
                 w_n = (32 - w % 32) % 32
                 input_ = torch.nn.functional.pad(input_, (0, w_n, 0, h_n), mode='reflect')
 
-                restored = model_restoration(input_)[-1]
+                restored = model_restoration(input_)
 
                 # Unpad images to original dimensions
                 restored = restored[:,:,:h,:w]
@@ -174,5 +170,5 @@ def main():
 
 
 if __name__ == '__main__':
-    os.environ['CUDA_VISIBLE_DEVICES']='3'
+    os.environ['CUDA_VISIBLE_DEVICES']='0'
     main()

@@ -1,8 +1,8 @@
 # general settings
-name: EB_NAFNet_1e-3
+name: EB_NAFNet_debug
 model_type: ImageEventRestorationModel
 scale: 1
-num_gpu:  4
+num_gpu:  1
 manual_seed: 10
 
 datasets:
@@ -11,7 +11,7 @@ datasets:
     type: H5ImageDataset
 
     # dataroot: ./datasets/GoPro_scer/train
-    dataroot: /workspace/data/GOPRO/train
+    dataroot: /workspace/data/GOPRO/test
 
     # keep true if use events
     norm_voxel: true
@@ -32,7 +32,7 @@ datasets:
 
     # data loader settings
     use_shuffle: true
-    num_worker_per_gpu: 2
+    num_worker_per_gpu: 1
     batch_size_per_gpu: 8 # 4 for 2080, 8 for titan
 
 
@@ -112,7 +112,7 @@ val:
 
 # logging settings
 logger:
-  print_freq: 1000
+  print_freq: 1
   save_checkpoint_freq: !!float 5000
   use_tb_logger: true
   wandb:

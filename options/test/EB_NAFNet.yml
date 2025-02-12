@@ -38,7 +38,7 @@ network_g:
 
 # path
 path:
-  pretrain_network_g: pretrained_model/EBNAFNet_1e-3/135K.pth
+  pretrain_network_g: pretrained_model/EBNAFNet_1e-3/150K.pth
   strict_load_g: true
   resume_state: ~
   root: /workspace/FFTformer  # set this option ONLY in TEST!!!

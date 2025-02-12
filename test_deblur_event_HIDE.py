@@ -28,7 +28,7 @@ def main():
     parser = argparse.ArgumentParser(description='Single Image Motion Deblurring using Restormer')
 
     parser.add_argument('--result_dir', default='./results/HIDE', type=str, help='Directory for results')
-    parser.add_argument('--weights', default='/workspace/FFTformer/pretrained_model/EBNAFNet_1e-3/105K.pth', type=str, help='Path to weights')
+    parser.add_argument('--weights', default='/workspace/FFTformer/pretrained_model/EBNAFNet_1e-3/150K.pth', type=str, help='Path to weights')
     parser.add_argument('--dataset', default='EB_NAFNet', type=str, help='Test Dataset') # ['GoPro', 'HIDE', 'RealBlur_J', 'RealBlur_R']
 
     args = parser.parse_args()
@@ -159,5 +159,5 @@ def main():
 
 
 if __name__ == '__main__':
-    os.environ['CUDA_VISIBLE_DEVICES']='0'
+    os.environ['CUDA_VISIBLE_DEVICES']='1'
     main()
