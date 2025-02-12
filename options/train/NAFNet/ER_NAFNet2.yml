@@ -1,8 +1,7 @@
-# general settings
-name: EFNet_gen_debug
-model_type: ImageEventRestorationModel
+name: ImageEvent_Refinement
+model_type: ImageEventRefinementModel
 scale: 1
-num_gpu:  1
+num_gpu: 4
 manual_seed: 10
 
 datasets:
@@ -10,6 +9,7 @@ datasets:
     name: gopro-h5-train
     type: H5ImageDataset
 
+    # dataroot: ./datasets/GoPro_scer/train
     dataroot: /workspace/data/GOPRO/train
 
     # keep true if use events
@@ -32,20 +32,19 @@ datasets:
     # data loader settings
     use_shuffle: true
     num_worker_per_gpu: 2
-    batch_size_per_gpu: 4 # 4 for 2080, 8 for titan
-    dataset_enlarge_ratio: 4  # accelarate, equals to the num_gpu
-    prefetch_mode: cpu
-    num_prefetch_queue: 2
+    batch_size_per_gpu: 8 # 4 for 2080, 8 for titan
+
 
   val:
     name: gopro-h5-test
     type: H5ImageDataset
 
+    # dataroot: ./datasets/test
     dataroot: /workspace/data/GOPRO/test
 
     norm_voxel: true  
     return_voxel: true
-    return_mask: true 
+    return_mask: true
     use_mask: false
     return_gen_event: true
 
@@ -60,62 +59,62 @@ dataset_name: GoPro
 
 # network structures
 network_g:
-  type: EFNet
-  wf: 64 
-  fuse_before_downsample: true
+  type: NAFNet2
+  width: 64
+  enc_blk_nums: [1, 1, 1, 28]
+  middle_blk_num: 1
+  dec_blk_nums: [1, 1, 1, 1]
 
 # path
 path:
   pretrain_network_g: ~
   strict_load_g: true
   resume_state: ~
-  training_states: ~ # save current trainig model states, for resume
+
+
 
 # training settings
 train:
   optim_g:
     type: AdamW
-    lr: !!float 2e-4
+    lr: !!float 1e-4
     weight_decay: !!float 1e-4
-    betas: [0.9, 0.99]
+    betas: [0.9, 0.9]
 
   scheduler:
     type: TrueCosineAnnealingLR
-    T_max: 200000 
+    T_max: 300000
     eta_min: !!float 1e-7
 
-  total_iter: 200000
+  total_iter: 300000
   warmup_iter: -1 # no warm up
 
   # losses
   pixel_opt:
-    type: PSNRLoss
-    loss_weight: 0.5
+    type: MSELoss
+    loss_weight: 1
     reduction: mean
+
 
 # validation settings
 val:
   val_freq: !!float 5000
-  save_img: false  
-  grids: ~  
-  crop_size: ~ 
-  max_minibatch: 8  
+  save_img: false
 
   metrics:
-    psnr:
-      type: calculate_psnr
+    rmse: # metric name, can be arbitrary
+      type: calculate_event_rmse
       crop_border: 0
-      test_y_channel: false
-    
+
     # ssim:
     #   type: calculate_ssim
     #   crop_border: 0
-    #   test_y_channel: false   
+    #   test_y_channel: false
 
 # logging settings
 logger:
   print_freq: 1000
-  save_checkpoint_freq: 5000
+  save_checkpoint_freq: !!float 5000
   use_tb_logger: true
   wandb:
     project: ~

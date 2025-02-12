@@ -16,9 +16,9 @@ loss_module = importlib.import_module('basicsr.models.losses')
 metric_module = importlib.import_module('basicsr.metrics')
 
 
-class EventRefinementModel(BaseModel):
+class ImageEventRefinementModel(BaseModel):
     def __init__(self, opt):
-        super(EventRefinementModel, self).__init__(opt)
+        super(ImageEventRefinementModel, self).__init__(opt)
 
         # define network
         self.net_g = define_network(deepcopy(opt['network_g']))
@@ -113,6 +113,7 @@ class EventRefinementModel(BaseModel):
     def feed_data(self, data):
 
         self.gen_event = data['gen_event'].to(self.device) # input
+        self.lq = data['frame'].to(self.device)
 
         self.voxel=data['voxel'].to(self.device) # GT
 
@@ -133,8 +134,9 @@ class EventRefinementModel(BaseModel):
 
     def optimize_parameters(self, current_iter):
         self.optimizer_g.zero_grad()
+        self.input = torch.cat([self.gen_event, self.lq], dim=1)
     
-        preds = self.net_g(self.gen_event)
+        preds = self.net_g(self.input)
 
 
         if not isinstance(preds, list):
