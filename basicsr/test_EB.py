@@ -1,7 +1,8 @@
 import logging
 import torch
 from os import path as osp
-
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 from basicsr.data import create_dataloader, create_dataset
 from basicsr.models import create_model
 from basicsr.train import parse_options
@@ -59,6 +60,5 @@ def main():
         print(results)
 
 if __name__ == '__main__':
-    import os
-    os.environ['CUDA_VISIBLE_DEVICES'] = '1'
+
     main()
