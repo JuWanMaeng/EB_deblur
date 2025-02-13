@@ -39,4 +39,5 @@
 *.pth
 
 event_data_vis.ipynb
+basicsr/utils/options.py
 
