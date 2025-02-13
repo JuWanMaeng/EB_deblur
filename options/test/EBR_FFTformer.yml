@@ -44,7 +44,7 @@ network_g:
 
 # path
 path:
-  pretrain_network_g: /workspace/data/FFTformer/experiments/EB_FFTformer/models/best.pth
+  pretrain_network_g: pretrained_model/EB_FFTformer.pth
   strict_load_g: true
   resume_state: ~
   root: /workspace/FFTformer  # set this option ONLY in TEST!!!
@@ -59,7 +59,7 @@ network_r:
 
 # path
 path_r:
-  pretrain_network_r: /workspace/FFTformer/pretrain_model/ER.pth
+  pretrain_network_r: pretrained_model/ER.pth
   strict_load_g: true
   resume_state: ~
 

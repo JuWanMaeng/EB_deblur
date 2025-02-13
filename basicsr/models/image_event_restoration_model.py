@@ -146,150 +146,6 @@ class ImageEventRestorationModel(BaseModel):
             t = torch.flip(t, [3])
         return t
 
-    def grids_voxel(self):
-        b, c, h, w = self.voxel.size()
-        self.original_size_voxel = self.voxel.size()
-        assert b == 1
-        crop_size = self.opt['val'].get('crop_size')
-        # step_j = self.opt['val'].get('step_j', crop_size)
-        # step_i = self.opt['val'].get('step_i', crop_size)
-        ##adaptive step_i, step_j
-        num_row = (h - 1) // crop_size + 1
-        num_col = (w - 1) // crop_size + 1
-
-        import math
-        step_j = crop_size if num_col == 1 else math.ceil((w - crop_size) / (num_col - 1) - 1e-8)
-        step_i = crop_size if num_row == 1 else math.ceil((h - crop_size) / (num_row - 1) - 1e-8)
-
-        # print('step_i, stepj', step_i, step_j)
-        # exit(0)
-
-
-        parts = []
-        idxes = []
-
-        # cnt_idx = 0
-
-        i = 0  # 0~h-1
-        last_i = False
-        while i < h and not last_i:
-            j = 0
-            if i + crop_size >= h:
-                i = h - crop_size
-                last_i = True
-
-
-            last_j = False
-            while j < w and not last_j:
-                if j + crop_size >= w:
-                    j = w - crop_size
-                    last_j = True
-                # from i, j to i+crop_szie, j + crop_size
-                # print(' trans 8')
-                for trans_idx in range(self.opt['val'].get('trans_num', 1)):
-                    parts.append(self.transpose(self.voxel[:, :, i:i + crop_size, j:j + crop_size], trans_idx))
-                    idxes.append({'i': i, 'j': j, 'trans_idx': trans_idx})
-                    # cnt_idx += 1
-                j = j + step_j
-            i = i + step_i
-        if self.opt['val'].get('random_crop_num', 0) > 0:
-            for _ in range(self.opt['val'].get('random_crop_num')):
-                import random
-                i = random.randint(0, h-crop_size)
-                j = random.randint(0, w-crop_size)
-                trans_idx = random.randint(0, self.opt['val'].get('trans_num', 1) - 1)
-                parts.append(self.transpose(self.voxel[:, :, i:i + crop_size, j:j + crop_size], trans_idx))
-                idxes.append({'i': i, 'j': j, 'trans_idx': trans_idx})
-
-
-        self.origin_voxel = self.voxel
-        self.voxel = torch.cat(parts, dim=0)
-        print('----------parts voxel .. ', len(parts), self.voxel.size())
-        self.idxes = idxes
-
-
-    def grids(self):
-        b, c, h, w = self.lq.size()  # lq is after data augment (for example, crop, if have)
-        self.original_size = self.lq.size()
-        assert b == 1
-        crop_size = self.opt['val'].get('crop_size')
-        # step_j = self.opt['val'].get('step_j', crop_size)
-        # step_i = self.opt['val'].get('step_i', crop_size)
-        ##adaptive step_i, step_j
-        num_row = (h - 1) // crop_size + 1
-        num_col = (w - 1) // crop_size + 1
-
-        import math
-        step_j = crop_size if num_col == 1 else math.ceil((w - crop_size) / (num_col - 1) - 1e-8)
-        step_i = crop_size if num_row == 1 else math.ceil((h - crop_size) / (num_row - 1) - 1e-8)
-
-
-        # print('step_i, stepj', step_i, step_j)
-        # exit(0)
-
-
-        parts = []
-        idxes = []
-
-        # cnt_idx = 0
-
-        i = 0  # 0~h-1
-        last_i = False
-        while i < h and not last_i:
-            j = 0
-            if i + crop_size >= h:
-                i = h - crop_size
-                last_i = True
-
-
-            last_j = False
-            while j < w and not last_j:
-                if j + crop_size >= w:
-                    j = w - crop_size
-                    last_j = True
-                # from i, j to i+crop_szie, j + crop_size
-                # print(' trans 8')
-                for trans_idx in range(self.opt['val'].get('trans_num', 1)):
-                    parts.append(self.transpose(self.lq[:, :, i:i + crop_size, j:j + crop_size], trans_idx))
-                    idxes.append({'i': i, 'j': j, 'trans_idx': trans_idx})
-                    # cnt_idx += 1
-                j = j + step_j
-            i = i + step_i
-        if self.opt['val'].get('random_crop_num', 0) > 0:
-            for _ in range(self.opt['val'].get('random_crop_num')):
-                import random
-                i = random.randint(0, h-crop_size)
-                j = random.randint(0, w-crop_size)
-                trans_idx = random.randint(0, self.opt['val'].get('trans_num', 1) - 1)
-                parts.append(self.transpose(self.lq[:, :, i:i + crop_size, j:j + crop_size], trans_idx))
-                idxes.append({'i': i, 'j': j, 'trans_idx': trans_idx})
-
-
-        self.origin_lq = self.lq
-        self.lq = torch.cat(parts, dim=0)
-        # print('parts .. ', len(parts), self.lq.size())
-        self.idxes = idxes
-
-    def grids_inverse(self):
-        preds = torch.zeros(self.original_size).to(self.device)
-        b, c, h, w = self.original_size
-
-        print('...', self.device)
-
-        count_mt = torch.zeros((b, 1, h, w)).to(self.device)
-        crop_size = self.opt['val'].get('crop_size')
-
-        for cnt, each_idx in enumerate(self.idxes):
-            i = each_idx['i']
-            j = each_idx['j']
-            trans_idx = each_idx['trans_idx']
-            preds[0, :, i:i + crop_size, j:j + crop_size] += self.transpose_inverse(self.output[cnt, :, :, :].unsqueeze(0), trans_idx).squeeze(0)
-            count_mt[0, 0, i:i + crop_size, j:j + crop_size] += 1.
-
-        self.output = preds / count_mt
-        self.lq = self.origin_lq
-        self.voxel = self.origin_voxel
-
 
     def optimize_parameters(self, current_iter):
         self.optimizer_g.zero_grad()
@@ -570,8 +426,10 @@ class ImageEventRestorationModel(BaseModel):
             lq = val_data['frame']
             event = val_data['gen_event']
             ER_input = torch.cat([event,lq], dim=(1))
+            ER_input = ER_input.to(self.device)
             with torch.no_grad():
                 event = self.net_r(ER_input)
+                event = event.detach().cpu()
             
 
             lq = torch.cat([lq,event],dim=(1))

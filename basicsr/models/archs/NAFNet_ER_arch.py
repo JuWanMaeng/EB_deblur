@@ -80,7 +80,7 @@ class NAFBlock(nn.Module):
         return y + x * self.gamma
 
 
-class NAFNet2(nn.Module):
+class NAFNet_ER(nn.Module):
 
     def __init__(self, img_channel=6, width=16, middle_blk_num=1, enc_blk_nums=[], dec_blk_nums=[]):
         super().__init__()

@@ -260,8 +260,8 @@ class H5ImageDataset(data.Dataset):
         """
         
         # normalize voxel to [-1,1]
-        max_val = torch.max(torch.abs(voxel))
-        voxel = voxel / max_val
+        # max_val = torch.max(torch.abs(voxel))
+        # voxel = voxel / max_val
 
         if self.vox_transform:
             random.seed(seed)
