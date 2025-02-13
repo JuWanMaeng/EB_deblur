@@ -1,4 +1,4 @@
-name: Gopro_test
+name: Gopro_train
 model_type: ImageEventRefinementModel
 scale: 1
 num_gpu: 2
@@ -10,7 +10,7 @@ datasets:
     type: H5ImageDataset
 
     # dataroot: ./datasets/test
-    dataroot: /workspace/data/GOPRO/test
+    dataroot: /workspace/data/GOPRO/train
 
     norm_voxel: true  
     return_voxel: true

@@ -1,4 +1,4 @@
-name: IER_L2_1e-3_Adam
+name: IER_L2_1e-3_MultiStep
 model_type: ImageEventRefinementModel
 scale: 1
 num_gpu: 2
@@ -31,7 +31,7 @@ datasets:
 
     # data loader settings
     use_shuffle: true
-    num_worker_per_gpu: 2
+    num_worker_per_gpu: 1
     batch_size_per_gpu: 8 # 4 for 2080, 8 for titan
 
 
@@ -76,15 +76,21 @@ path:
 # training settings
 train:
   optim_g:
-    type: Adam
+    type: AdamW
     lr: !!float 1e-3
     weight_decay: !!float 1e-3
     betas: [0.9, 0.9]
 
+  # scheduler:
+  #   type: TrueCosineAnnealingLR
+  #   T_max: 100000
+  #   eta_min: !!float 1e-7
+
   scheduler:
-    type: TrueCosineAnnealingLR
+    type: MultiStepRestartLR
     T_max: 100000
-    eta_min: !!float 1e-7
+    milestones: [20000,40000,80000]
+    gamma: 0.1
 
   total_iter: 100000
   warmup_iter: -1 # no warm up
