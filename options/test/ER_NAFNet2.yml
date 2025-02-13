@@ -1,7 +1,7 @@
-name: Gopro_test
-model_type: EventRefinementModel
+name: Gopro_train
+model_type: ImageEventRefinementModel
 scale: 1
-num_gpu: 4
+num_gpu: 2
 manual_seed: 10
 
 datasets:
@@ -10,7 +10,7 @@ datasets:
     type: H5ImageDataset
 
     # dataroot: ./datasets/test
-    dataroot: /workspace/data/GOPRO/test
+    dataroot: /workspace/data/GOPRO/train
 
     norm_voxel: true  
     return_voxel: true
@@ -29,7 +29,7 @@ dataset_name: GoPro
 
 # network structures
 network_g:
-  type: NAFNet
+  type: NAFNet2
   width: 64
   enc_blk_nums: [1, 1, 1, 28]
   middle_blk_num: 1
@@ -37,22 +37,21 @@ network_g:
 
 # path
 path:
-  pretrain_network_g: /workspace/FFTformer/pretrained_model/Event_Refinment_E_L1_1e-4.pth
+  pretrain_network_g: /workspace/FFTformer/pretrained_model/check.pth
   strict_load_g: true
   resume_state: ~
-  root: /workspace/FFTformer  # set this option ONLY in TEST!!!
+
 
 # validation settings
 val:
+  val_freq: !!float 5000
   save_img: true
-  grids: ~
-  crop_size: ~
-  rgb2bgr: false # to my h5 data, its false
 
   metrics:
     rmse: # metric name, can be arbitrary
       type: calculate_event_rmse
       crop_border: 0
+
 
 
 # dist training settings
