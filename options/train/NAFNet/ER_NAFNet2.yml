@@ -1,4 +1,4 @@
-name: IER_L2_1e-3_Adam
+name: IER_L2_1e-3_MultiStep_0.5
 model_type: ImageEventRefinementModel
 scale: 1
 num_gpu: 2
@@ -67,7 +67,7 @@ network_g:
 
 # path
 path:
-  pretrain_network_g: ~
+  pretrain_network_g: /workspace/data/FFTformer/experiments/IER_L2_1e-3/models/net_g_90000.pth
   strict_load_g: true
   resume_state: ~
 
@@ -76,15 +76,20 @@ path:
 # training settings
 train:
   optim_g:
-    type: Adam
-    lr: !!float 1e-3
+    type: AdamW
+    lr: !!float 5e-4
     weight_decay: !!float 1e-3
     betas: [0.9, 0.9]
 
+  # scheduler:
+  #   type: TrueCosineAnnealingLR
+  #   T_max: 100000
+  #   eta_min: !!float 1e-7
+
   scheduler:
-    type: TrueCosineAnnealingLR
-    T_max: 100000
-    eta_min: !!float 1e-7
+    type: MultiStepRestartLR
+    milestones: [20000,40000,60000]
+    gamma: 0.5
 
   total_iter: 100000
   warmup_iter: -1 # no warm up
