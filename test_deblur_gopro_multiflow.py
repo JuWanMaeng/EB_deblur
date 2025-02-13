@@ -17,7 +17,7 @@ import Motion_Deblurring.utils as utils
 from natsort import natsorted
 from glob import glob
 from basicsr.models.archs.NAFNet_arch import NAFNet
-from basicsr.models.archs.fftformer_arch import fftformer
+from basicsr.models.archs.EBR_fftformer_arch import fftformer
 from basicsr.models.archs.fftformer_cross_arch import fftformer_cross
 from basicsr.models.archs.EFNet_flow_arch import EFNet
 from skimage import img_as_ubyte

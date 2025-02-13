@@ -45,14 +45,6 @@ class ImageEventRestorationModel(BaseModel):
             self.wandb = False
 
 
-        # Event refine module
-        if 'network_r' in opt:
-            self.net_r = define_network(deepcopy(opt['network_r']))
-            self.net_r = self.model_to_device(self.net_r)
-            load_path = self.opt['path_r'].get('pretrain_network_r', None)
-            if load_path is not None:
-                self.load_network(self.net_r, load_path,
-                                self.opt['path'].get('strict_load_g', True), param_key=self.opt['path'].get('param_key', 'params'))
            
 
 
@@ -416,7 +408,6 @@ class ImageEventRestorationModel(BaseModel):
         pbar = tqdm(total=len(dataloader), unit='image')
 
         cnt = 0
-        self.net_r.eval()
 
         for idx, val_data in enumerate(dataloader):
 
@@ -426,14 +417,6 @@ class ImageEventRestorationModel(BaseModel):
 
             lq = val_data['frame']
             event = val_data['gen_event']
-            ER_input = torch.cat([event,lq], dim=(1))
-            ER_input = ER_input.to(self.device)
-
-            with torch.no_grad():
-                event = self.net_r(ER_input)
-                event = event.cpu()
-                torch.cuda.empty_cache()
-            
 
             lq = torch.cat([lq,event],dim=(1))
             val_data['frame'] = lq

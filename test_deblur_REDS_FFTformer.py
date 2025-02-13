@@ -17,7 +17,7 @@ import Motion_Deblurring.utils as utils
 from natsort import natsorted
 from glob import glob
 from basicsr.models.archs.NAFNet_arch import NAFNet
-from basicsr.models.archs.fftformer_arch import fftformer
+from basicsr.models.archs.EBR_fftformer_arch import fftformer
 from skimage import img_as_ubyte
 from pdb import set_trace as stx
 from metric import caculate_PSNR,caculate_PSNR_from_tensor

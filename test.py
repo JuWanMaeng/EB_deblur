@@ -1,7 +1,7 @@
 import os
 import torch
 import argparse
-from basicsr.models.archs.fftformer_arch import  fftformer
+from basicsr.models.archs.EBR_fftformer_arch import  fftformer
 from torchvision.transforms import functional as F
 from torch.utils.data import Dataset, DataLoader
 from PIL import Image as Image

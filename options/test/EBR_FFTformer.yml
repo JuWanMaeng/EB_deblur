@@ -33,7 +33,7 @@ dataset_name: GoPro
 
 # network structures
 network_g:
-  type: fftformer
+  type: EBR_fftformer
   inp_channels: 9
   out_channels: 3
   dim: 48
@@ -48,20 +48,6 @@ path:
   strict_load_g: true
   resume_state: ~
   root: /workspace/FFTformer  # set this option ONLY in TEST!!!
-
-# network structures
-network_r:
-  type: NAFNet_ER
-  width: 64
-  enc_blk_nums: [1, 1, 1, 28]
-  middle_blk_num: 1
-  dec_blk_nums: [1, 1, 1, 1]
-
-# path
-path_r:
-  pretrain_network_r: pretrained_model/ER.pth
-  strict_load_g: true
-  resume_state: ~
 
 
 # validation settings

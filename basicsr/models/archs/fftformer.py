@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numbers
 from einops import rearrange
+from basicsr.models.archs.NAFNet_arch import NAFNet
 
 
 def to_3d(x):
@@ -266,6 +267,7 @@ class fftformer(nn.Module):
         self.fuse2 = Fuse(dim * 2)
         self.fuse1 = Fuse(dim)
         self.output = nn.Conv2d(int(dim), out_channels, kernel_size=3, stride=1, padding=1, bias=bias)
+
 
     def forward(self, y):
         if y.shape[1] != 3:
