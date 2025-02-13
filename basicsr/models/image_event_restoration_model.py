@@ -44,6 +44,18 @@ class ImageEventRestorationModel(BaseModel):
         else:
             self.wandb = False
 
+
+        # Event refine module
+        if 'network_r' in opt:
+            self.net_r = define_network(deepcopy(opt['network_r']))
+            self.net_r = self.model_to_device(self.net_r)
+            load_path = self.opt['path_r'].get('pretrain_network_r', None)
+            if load_path is not None:
+                self.load_network(self.net_r, load_path,
+                                self.opt['path'].get('strict_load_g', True), param_key=self.opt['path'].get('param_key', 'params'))
+            self.net_r.eval()
+
+
     def init_training_settings(self):
         self.net_g.train()
         train_opt = self.opt['train']
@@ -433,6 +445,134 @@ class ImageEventRestorationModel(BaseModel):
             # event = val_data['voxel']
             event = val_data['gen_event']
             # event = torch.flip(event,dims=[1])
+
+            lq = torch.cat([lq,event],dim=(1))
+            val_data['frame'] = lq
+
+            
+            self.feed_data(val_data)
+            if self.opt['val'].get('grids') is not None:
+                self.grids()
+                self.grids_voxel()
+
+            self.test()
+
+            if self.opt['val'].get('grids') is not None:
+                self.grids_inverse()
+
+            visuals = self.get_current_visuals()
+            sr_img = tensor2img([visuals['result']], rgb2bgr=rgb2bgr)
+
+            if 'gt' in visuals:
+                gt_img = tensor2img([visuals['gt']], rgb2bgr=rgb2bgr)
+                del self.gt
+
+            # tentative for out of GPU memory
+            del self.lq
+            del self.output
+            torch.cuda.empty_cache()
+
+            if save_img:
+                
+                if self.opt['is_train']:
+                    if cnt == 1: # visualize cnt=1 image every time
+                        save_img_path = osp.join(self.opt['path']['visualization'],
+                                                img_name,
+                                                f'{img_name}_{current_iter}.png')
+                        
+                        save_gt_img_path = osp.join(self.opt['path']['visualization'],
+                                                img_name,
+                                                f'{img_name}_{current_iter}_gt.png')
+                else:
+                    print('Save path:{}'.format(self.opt['path']['visualization']))
+                    print('Dataset name:{}'.format(dataset_name))
+                    print('Img_name:{}'.format(img_name))
+                    save_img_path = osp.join(
+                        self.opt['path']['visualization'], dataset_name,
+                        f'{img_name}.png')
+                    save_gt_img_path = osp.join(
+                        self.opt['path']['visualization'], dataset_name,
+                        f'{img_name}_gt.png')
+                    
+                imwrite(sr_img, save_img_path)
+                imwrite(gt_img, save_gt_img_path)
+
+            if with_metrics:
+                # calculate metrics
+                with open('gopro.txt', 'a') as f:
+                    scores = []
+                    opt_metric = deepcopy(self.opt['val']['metrics'])
+                    if use_image:
+                        for name, opt_ in opt_metric.items():
+                            metric_type = opt_.pop('type')
+                            self.metric_results[name] += getattr(
+                                metric_module, metric_type)(sr_img, gt_img, **opt_)
+                            scores.append(getattr(metric_module, metric_type)(sr_img, gt_img, **opt_))
+                        f.write(f'{scores[0]:.3f}_{scores[1]:.5f}\n')
+                    else:
+                        for name, opt_ in opt_metric.items():
+                            metric_type = opt_.pop('type')
+                            self.metric_results[name] += getattr(
+                                metric_module, metric_type)(visuals['result'], visuals['gt'], **opt_)
+
+            # default setting
+            # if with_metrics:
+            #     # calculate metrics
+            #     opt_metric = deepcopy(self.opt['val']['metrics'])
+            #     if use_image:
+            #         for name, opt_ in opt_metric.items():
+            #             metric_type = opt_.pop('type')
+            #             self.metric_results[name] += getattr(
+            #                 metric_module, metric_type)(sr_img, gt_img, **opt_)
+            #     else:
+            #         for name, opt_ in opt_metric.items():
+            #             metric_type = opt_.pop('type')
+            #             self.metric_results[name] += getattr(
+            #                 metric_module, metric_type)(visuals['result'], visuals['gt'], **opt_)
+
+
+
+            pbar.update(1)
+            # pbar.set_description(f'Test {img_name}')
+            cnt += 1
+        pbar.close()
+
+        current_metric = 0.
+        if with_metrics:
+            for metric in self.metric_results.keys():
+                self.metric_results[metric] /= cnt
+                current_metric = self.metric_results[metric]
+
+            self._log_validation_metric_values(current_iter, dataset_name,
+                                               tb_logger)
+        return current_metric
+
+    def EBR_nondist_validation(self, dataloader, current_iter, tb_logger,
+                           save_img, rgb2bgr, use_image):
+        dataset_name = self.opt.get('name') # !
+        
+        with_metrics = self.opt['val'].get('metrics') is not None
+        if with_metrics:
+            self.metric_results = {
+                metric: 0
+                for metric in self.opt['val']['metrics'].keys()
+            }
+        pbar = tqdm(total=len(dataloader), unit='image')
+
+        cnt = 0
+
+        for idx, val_data in enumerate(dataloader):
+
+
+            img_name = '{:06d}'.format(cnt)
+
+
+            lq = val_data['frame']
+            event = val_data['gen_event']
+            ER_input = torch.cat([event,lq], dim=(1))
+            with torch.no_grad():
+                event = self.net_r(ER_input)
+            
 
             lq = torch.cat([lq,event],dim=(1))
             val_data['frame'] = lq
