@@ -65,7 +65,7 @@ def parse(opt_path, is_train=True):
     opt['path']['root'] = osp.abspath(
         osp.join(__file__, osp.pardir, osp.pardir, osp.pardir))
     
-    # opt['path']['root'] = '/workspace/data/FFTformer' ##############
+    opt['path']['root'] = '/workspace/data/FFTformer' ##############
 
     if is_train:
         experiments_root = osp.join(opt['path']['root'], 'experiments',
