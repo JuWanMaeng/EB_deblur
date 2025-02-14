@@ -37,7 +37,11 @@ network_g:
 
 # path
 path:
+<<<<<<< HEAD
   pretrain_network_g: experiments/IER_L2_1e-3_witdh32/models/net_g_135000.pth
+=======
+  pretrain_network_g: pretrained_model/ER_best_width32.pth
+>>>>>>> 0ff8f091996692bff6195de327aac0dd216a7fce
   strict_load_g: true
   resume_state: ~
 
