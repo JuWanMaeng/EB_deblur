@@ -179,7 +179,7 @@ class CustomMaskL1Loss(nn.Module):
         Args:
             loss_weight (float): 전체 손실에 곱할 가중치.
             lambda_mask (float): GT 이벤트가 0에 가까운 영역에 추가적으로 적용할 페널티 강도.
-            epsilon (float): GT 이벤트가 0로 간주할 임계값.
+            epsilon (float): GT 이벤트가 0로 간주할 임계값.wat
             reduction (str): 'mean'만 지원.
         """
         super(CustomMaskL1Loss, self).__init__()
@@ -199,7 +199,7 @@ class CustomMaskL1Loss(nn.Module):
 
 
 class CustomMaskL2Loss(nn.Module):
-    def __init__(self, loss_weight=1.0, lambda_mask=5.0, epsilon=0.01, reduction='mean'):
+    def __init__(self, loss_weight=1.0, lambda_mask=2.0,reduction='mean'):
         """
         Custom Masked L2 Loss (MSE Loss)
 
@@ -213,11 +213,10 @@ class CustomMaskL2Loss(nn.Module):
         assert reduction == 'mean', "Only 'mean' reduction is supported."
         self.loss_weight = loss_weight
         self.lambda_mask = lambda_mask
-        self.epsilon = epsilon
-
+    
     def forward(self, pred, target):
         # GT 이벤트가 0에 가까운 픽셀에 대해 마스크 생성
-        mask = (target.abs() < self.epsilon).float()
+        mask = (target.abs() == 0).float()
         weight = 1.0 + self.lambda_mask * mask
         # L2 손실 (제곱 오차) 계산
         loss = (weight * (pred - target) ** 2).mean()
