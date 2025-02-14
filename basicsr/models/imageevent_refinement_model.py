@@ -159,7 +159,7 @@ class ImageEventRefinementModel(BaseModel):
 
             elif self.pixel_type == 'PSNRLoss':
                 for pred in preds:
-                    l_pix += self.cri_pix(pred, self.gt)
+                    l_pix += self.cri_pix(pred, self.voxel)
             
             else:
                 for pred in preds:

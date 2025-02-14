@@ -1,4 +1,4 @@
-name: IER_L2_1e-3_2e-3
+name: IER_PSNR_1e-3
 model_type: ImageEventRefinementModel
 scale: 1
 num_gpu: 2
@@ -31,7 +31,7 @@ datasets:
 
     # data loader settings
     use_shuffle: true
-    num_worker_per_gpu: 2
+    num_worker_per_gpu: 1
     batch_size_per_gpu: 8 # 4 for 2080, 8 for titan
 
 
@@ -101,7 +101,7 @@ train:
 
   # losses
   pixel_opt:
-    type: MSELoss
+    type: PSNRLoss
     loss_weight: 1
     reduction: mean
 
