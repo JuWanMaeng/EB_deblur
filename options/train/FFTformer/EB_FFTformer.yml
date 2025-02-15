@@ -1,8 +1,8 @@
 # general settings
-name: EB_FFTformer_finetune
+name: EB_FFTformer_refined_threshold
 model_type: ImageEventRestorationModel
 scale: 1
-num_gpu:  3
+num_gpu:  4
 manual_seed: 10
 
 datasets:
@@ -73,7 +73,7 @@ network_g:
 
 # path
 path:
-  pretrain_network_g: /workspace/data/FFTformer/experiments/EB_FFTformer/models/best.pth
+  pretrain_network_g: ~
   strict_load_g: true
   resume_state: ~
   training_states: ~ # save current trainig model states, for resume
@@ -82,16 +82,16 @@ path:
 train:
   optim_g:
     type: AdamW
-    lr: !!float 1e-5
+    lr: !!float 1e-4
     weight_decay: !!float 1e-4
     betas: [0.9, 0.9]
 
   scheduler:
     type: TrueCosineAnnealingLR
-    T_max: 200000
+    T_max: 500000
     eta_min: !!float 1e-7
 
-  total_iter: 200000
+  total_iter: 500000
   warmup_iter: -1 # no warm up
 
   # losses

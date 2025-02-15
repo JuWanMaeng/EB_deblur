@@ -39,7 +39,7 @@ class ImageEventRestorationModel(BaseModel):
             local_rank = os.environ.get('LOCAL_RANK', '0')
             if local_rank == '0':
                 wandb.init(project='promptir')
-                wandb.run.name = '(FFT)EB_FFTformer_threshold'
+                wandb.run.name = '(NAF)EB_NAFNet_refined'
             self.wandb = True
         else:
             self.wandb = False
@@ -408,7 +408,7 @@ class ImageEventRestorationModel(BaseModel):
         else:
             return 0.
 
-    def custom_nondist_validation(self, dataloader, current_iter, tb_logger,
+    def nondist_validation(self, dataloader, current_iter, tb_logger,
                            save_img, rgb2bgr, use_image):
         dataset_name = self.opt.get('name') # !
         
@@ -485,38 +485,38 @@ class ImageEventRestorationModel(BaseModel):
                 imwrite(sr_img, save_img_path)
                 imwrite(gt_img, save_gt_img_path)
 
-            if with_metrics:
-                # calculate metrics
-                with open('gopro_reversed.txt', 'a') as f:
-                    scores = []
-                    opt_metric = deepcopy(self.opt['val']['metrics'])
-                    if use_image:
-                        for name, opt_ in opt_metric.items():
-                            metric_type = opt_.pop('type')
-                            self.metric_results[name] += getattr(
-                                metric_module, metric_type)(sr_img, gt_img, **opt_)
-                            scores.append(getattr(metric_module, metric_type)(sr_img, gt_img, **opt_))
-                        f.write(f'{scores[0]:.3f}_{scores[1]:.5f}\n')
-                    else:
-                        for name, opt_ in opt_metric.items():
-                            metric_type = opt_.pop('type')
-                            self.metric_results[name] += getattr(
-                                metric_module, metric_type)(visuals['result'], visuals['gt'], **opt_)
-
-            # default setting
             # if with_metrics:
             #     # calculate metrics
-            #     opt_metric = deepcopy(self.opt['val']['metrics'])
-            #     if use_image:
-            #         for name, opt_ in opt_metric.items():
-            #             metric_type = opt_.pop('type')
-            #             self.metric_results[name] += getattr(
-            #                 metric_module, metric_type)(sr_img, gt_img, **opt_)
-            #     else:
-            #         for name, opt_ in opt_metric.items():
-            #             metric_type = opt_.pop('type')
-            #             self.metric_results[name] += getattr(
-            #                 metric_module, metric_type)(visuals['result'], visuals['gt'], **opt_)
+            #     with open('gopro_reversed.txt', 'a') as f:
+            #         scores = []
+            #         opt_metric = deepcopy(self.opt['val']['metrics'])
+            #         if use_image:
+            #             for name, opt_ in opt_metric.items():
+            #                 metric_type = opt_.pop('type')
+            #                 self.metric_results[name] += getattr(
+            #                     metric_module, metric_type)(sr_img, gt_img, **opt_)
+            #                 scores.append(getattr(metric_module, metric_type)(sr_img, gt_img, **opt_))
+            #             f.write(f'{scores[0]:.3f}_{scores[1]:.5f}\n')
+            #         else:
+            #             for name, opt_ in opt_metric.items():
+            #                 metric_type = opt_.pop('type')
+            #                 self.metric_results[name] += getattr(
+            #                     metric_module, metric_type)(visuals['result'], visuals['gt'], **opt_)
+
+            # default setting
+            if with_metrics:
+                # calculate metrics
+                opt_metric = deepcopy(self.opt['val']['metrics'])
+                if use_image:
+                    for name, opt_ in opt_metric.items():
+                        metric_type = opt_.pop('type')
+                        self.metric_results[name] += getattr(
+                            metric_module, metric_type)(sr_img, gt_img, **opt_)
+                else:
+                    for name, opt_ in opt_metric.items():
+                        metric_type = opt_.pop('type')
+                        self.metric_results[name] += getattr(
+                            metric_module, metric_type)(visuals['result'], visuals['gt'], **opt_)
 
 
 
@@ -537,7 +537,7 @@ class ImageEventRestorationModel(BaseModel):
 
 
 ############ use when training #################
-    def nondist_validation(self, dataloader, current_iter, tb_logger,
+    def custom_nondist_validation(self, dataloader, current_iter, tb_logger,
                            save_img, rgb2bgr, use_image):
         dataset_name = self.opt.get('name') # !
         
@@ -657,9 +657,6 @@ class ImageEventRestorationModel(BaseModel):
         if self.wandb:
             local_rank = os.environ.get('LOCAL_RANK', '0')
             if local_rank == '0':
-                value = value * 6
-                value = value + 55
-                value = value / 7
                 wandb.log({'val_loss': value, 'iter':current_iter})
             
         logger = get_root_logger()
