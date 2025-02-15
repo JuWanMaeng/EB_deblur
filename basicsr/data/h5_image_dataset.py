@@ -122,7 +122,7 @@ class H5ImageDataset(data.Dataset):
         self.transforms={}
         self.mean = opt['mean'] if 'mean' in opt else None
         self.std = opt['std'] if 'std' in opt else None
-        self.threshold = 0.05
+        self.threshold = 0.005
 
 
         if self.opt['norm_voxel'] is not None:
@@ -180,7 +180,7 @@ class H5ImageDataset(data.Dataset):
         frame = self.transform_frame(frame, seed, transpose_to_CHW=False)  # to tensor
 
         gen_event = self.get_gen_event(index)  
-        # gen_event[np.abs(gen_event) <= self.threshold] = 0
+        gen_event[np.abs(gen_event) <= self.threshold] = 0
 
         # normalize RGB
         if self.mean is not None or self.std is not None:

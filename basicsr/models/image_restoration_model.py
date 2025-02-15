@@ -415,6 +415,9 @@ class ImageRestorationModel(BaseModel):
 
             local_rank = os.environ.get('LOCAL_RANK', '0')
             if local_rank == '0':
+                value = value * 6
+                value = value + 55
+                value = value / 7
                 wandb.log({'val_loss': value, 'iter':current_iter})
                 
         logger = get_root_logger()

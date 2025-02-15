@@ -1,5 +1,5 @@
 # general settings
-name: EB_FFTformer_refined
+name: EB_FFTformer_refined_threshold
 model_type: ImageEventRestorationModel
 scale: 1
 num_gpu:  4
@@ -82,16 +82,16 @@ path:
 train:
   optim_g:
     type: AdamW
-    lr: !!float 1e-5
+    lr: !!float 1e-4
     weight_decay: !!float 1e-4
     betas: [0.9, 0.9]
 
   scheduler:
     type: TrueCosineAnnealingLR
-    T_max: 200000
+    T_max: 500000
     eta_min: !!float 1e-7
 
-  total_iter: 200000
+  total_iter: 500000
   warmup_iter: -1 # no warm up
 
   # losses
