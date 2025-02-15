@@ -1,5 +1,5 @@
 # general settings
-name: EB_NAFNet_1e-3
+name: EB_NAFNet_1e-3_refined
 model_type: ImageEventRestorationModel
 scale: 1
 num_gpu:  4

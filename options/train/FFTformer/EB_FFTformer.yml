@@ -1,8 +1,8 @@
 # general settings
-name: EB_FFTformer_finetune
+name: EB_FFTformer_refined
 model_type: ImageEventRestorationModel
 scale: 1
-num_gpu:  3
+num_gpu:  4
 manual_seed: 10
 
 datasets:
@@ -73,7 +73,7 @@ network_g:
 
 # path
 path:
-  pretrain_network_g: /workspace/data/FFTformer/experiments/EB_FFTformer/models/best.pth
+  pretrain_network_g: ~
   strict_load_g: true
   resume_state: ~
   training_states: ~ # save current trainig model states, for resume
