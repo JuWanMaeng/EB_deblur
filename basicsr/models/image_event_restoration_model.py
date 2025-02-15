@@ -45,9 +45,6 @@ class ImageEventRestorationModel(BaseModel):
             self.wandb = False
 
 
-           
-
-
     def init_training_settings(self):
         self.net_g.train()
         train_opt = self.opt['train']
@@ -345,38 +342,38 @@ class ImageEventRestorationModel(BaseModel):
                 imwrite(sr_img, save_img_path)
                 imwrite(gt_img, save_gt_img_path)
 
-            if with_metrics:
-                # calculate metrics
-                with open('gopro.txt', 'a') as f:
-                    scores = []
-                    opt_metric = deepcopy(self.opt['val']['metrics'])
-                    if use_image:
-                        for name, opt_ in opt_metric.items():
-                            metric_type = opt_.pop('type')
-                            self.metric_results[name] += getattr(
-                                metric_module, metric_type)(sr_img, gt_img, **opt_)
-                            scores.append(getattr(metric_module, metric_type)(sr_img, gt_img, **opt_))
-                        f.write(f'{scores[0]:.3f}_{scores[1]:.5f}\n')
-                    else:
-                        for name, opt_ in opt_metric.items():
-                            metric_type = opt_.pop('type')
-                            self.metric_results[name] += getattr(
-                                metric_module, metric_type)(visuals['result'], visuals['gt'], **opt_)
-
-            # default setting
             # if with_metrics:
             #     # calculate metrics
-            #     opt_metric = deepcopy(self.opt['val']['metrics'])
-            #     if use_image:
-            #         for name, opt_ in opt_metric.items():
-            #             metric_type = opt_.pop('type')
-            #             self.metric_results[name] += getattr(
-            #                 metric_module, metric_type)(sr_img, gt_img, **opt_)
-            #     else:
-            #         for name, opt_ in opt_metric.items():
-            #             metric_type = opt_.pop('type')
-            #             self.metric_results[name] += getattr(
-            #                 metric_module, metric_type)(visuals['result'], visuals['gt'], **opt_)
+            #     with open('gopro.txt', 'a') as f:
+            #         scores = []
+            #         opt_metric = deepcopy(self.opt['val']['metrics'])
+            #         if use_image:
+            #             for name, opt_ in opt_metric.items():
+            #                 metric_type = opt_.pop('type')
+            #                 self.metric_results[name] += getattr(
+            #                     metric_module, metric_type)(sr_img, gt_img, **opt_)
+            #                 scores.append(getattr(metric_module, metric_type)(sr_img, gt_img, **opt_))
+            #             f.write(f'{scores[0]:.3f}_{scores[1]:.5f}\n')
+            #         else:
+            #             for name, opt_ in opt_metric.items():
+            #                 metric_type = opt_.pop('type')
+            #                 self.metric_results[name] += getattr(
+            #                     metric_module, metric_type)(visuals['result'], visuals['gt'], **opt_)
+
+            # default setting
+            if with_metrics:
+                # calculate metrics
+                opt_metric = deepcopy(self.opt['val']['metrics'])
+                if use_image:
+                    for name, opt_ in opt_metric.items():
+                        metric_type = opt_.pop('type')
+                        self.metric_results[name] += getattr(
+                            metric_module, metric_type)(sr_img, gt_img, **opt_)
+                else:
+                    for name, opt_ in opt_metric.items():
+                        metric_type = opt_.pop('type')
+                        self.metric_results[name] += getattr(
+                            metric_module, metric_type)(visuals['result'], visuals['gt'], **opt_)
 
 
 

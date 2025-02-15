@@ -5,7 +5,8 @@ from collections import OrderedDict
 from copy import deepcopy
 from os import path as osp
 from tqdm import tqdm
-import os, wandb
+import os
+import wandb
 
 from basicsr.models.archs import define_network
 from basicsr.models.base_model import BaseModel
