@@ -97,7 +97,7 @@ class H5ImageDataset(data.Dataset):
         """
         if self.h5_file is None:
             self.h5_file = h5py.File(self.data_path, 'r')
-        return self.h5_file['gen_event']['image{:09d}'.format(index)][:]
+        return self.h5_file['gen_event_refined']['image{:09d}'.format(index)][:]
 
 
     def __init__(self, opt, data_path, return_voxel=True, return_frame=True, return_gt_frame=True,
@@ -122,7 +122,7 @@ class H5ImageDataset(data.Dataset):
         self.transforms={}
         self.mean = opt['mean'] if 'mean' in opt else None
         self.std = opt['std'] if 'std' in opt else None
-        self.threshold = 0.05
+        self.threshold = 0.005
 
 
         if self.opt['norm_voxel'] is not None:
@@ -179,8 +179,10 @@ class H5ImageDataset(data.Dataset):
         # voxel = self.get_voxel(index)
         frame = self.transform_frame(frame, seed, transpose_to_CHW=False)  # to tensor
 
-        # gen_event = self.get_gen_event(index)  # [-1,1] , [6,H,W]
-        gen_event = self.get_voxel(index)
+        gen_event = self.get_gen_event(index)  # [-1,1] , [6,H,W]
+        gen_event = gen_event.transpose(1,2,0)
+        # gen_event[np.abs(gen_event) <= self.threshold] = 0
+
 
         # normalize RGB
         if self.mean is not None or self.std is not None:

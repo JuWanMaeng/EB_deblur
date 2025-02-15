@@ -43,3 +43,4 @@ gopro.txt
 gopro_reversed.txt
 wandb.py
 debug_weights/
+record_result_wandb.py
