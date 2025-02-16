@@ -133,7 +133,7 @@ class NAFNet(nn.Module):
         B, C, H, W = y.shape
         if y.shape[1] != 3:
             inp = y
-            inp_img = y[:,0:3,:,:]
+            inp_img = y[:,0:6,:,:]  # event
         else:
             inp = y
             inp_img = y

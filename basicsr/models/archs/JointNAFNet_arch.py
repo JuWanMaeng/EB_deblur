@@ -131,9 +131,9 @@ class JointNAFNet(nn.Module):
 
         self.padder_size = 2 ** len(self.encoders)
 
-        self.refine = NAFNet(img_channel=3, width=32, middle_blk_num=1, enc_blk_nums=[1, 1, 1, 28], dec_blk_nums=[1, 1, 1, 1])
+        self.refine = NAFNet(img_channel=6, width=32, middle_blk_num=1, enc_blk_nums=[1, 1, 1, 28], dec_blk_nums=[1, 1, 1, 1])
         # train setting #
-        refine_checkpoint = torch.load('/workspace/FFTformer/pretrain_model/Event_Refinement.pth')
+        refine_checkpoint = torch.load('/workspace/FFTformer/pretrained_model/Event_Refinement.pth')
         self.refine.load_state_dict(refine_checkpoint['params'])
 
     def forward(self, y):
@@ -141,11 +141,17 @@ class JointNAFNet(nn.Module):
         # 0~2 blur, 3~5 event
 
         # event refinement
+        # [-0.n ~ 0.n]
         event = y[:,3:,:,:]
         inp_img = y[:,0:3,:,:]
-        refine_input = torch.cat([event,inp_img], dim=(1))
+        refine_input = torch.cat([event, inp_img], dim=(1))
         refined_event = self.refine(refine_input)
-        inp = torch.cat([inp_img, refined_event])
+
+        # [-1, 1]
+        max_val = torch.max(torch.abs(refined_event))
+        refined_event = refined_event / max_val
+
+        inp = torch.cat([inp_img, refined_event], dim=(1))
 
 
         x = self.intro(inp)

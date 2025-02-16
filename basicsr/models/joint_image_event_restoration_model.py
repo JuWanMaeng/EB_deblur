@@ -113,7 +113,7 @@ class JointImageEventRestorationModel(BaseModel):
 
     def feed_data(self, data):
 
-        self.lq = data['frame'].to(self.device)
+        self.lq = data['frame'].to(self.device)   # lq,event concate 되어있음
         if 'voxel' in data:
             self.voxel=data['voxel'].to(self.device) 
         if 'mask' in data:
@@ -142,35 +142,24 @@ class JointImageEventRestorationModel(BaseModel):
 
         self.output, refined_event = preds[0], preds[1]
 
-        self.output = preds[-1]
-
         l_total = 0
         loss_dict = OrderedDict()
         # pixel loss
         if self.cri_pix:
             l_pix = 0.
 
-            if self.pixel_type == 'PSNRATLoss':
-                l_pix += self.cri_pix(*preds, self.gt)
-
-            elif self.pixel_type == 'PSNRGateLoss':
-                for pred in preds:
-                    l_pix += self.cri_pix(pred, self.gt, self.mask)
-
-            elif self.pixel_type == 'PSNRLoss':
-                for pred in preds:
-                    l_pix += self.cri_pix(pred, self.gt)
+            if self.pixel_type == 'PSNRLoss':
+                l_pix += self.cri_pix(self.output, self.gt)
             
             else:
-                for pred in preds:
-                    l_pix += self.cri_pix(pred, self.gt)    
+                l_pix += self.cri_pix(self.output, self.gt)    
 
             l_total += l_pix
             loss_dict['l_pix'] = l_pix
 
         # fft loss
         if self.cri_fft:
-            l_fft = self.cri_fft(preds[-1], self.gt)
+            l_fft = self.cri_fft(self.output, self.gt)
             l_total += l_fft
             loss_dict['l_fft'] = l_fft         
 
@@ -220,9 +209,9 @@ class JointImageEventRestorationModel(BaseModel):
                 else:
                     pred = self.net_g(y = self.lq)
                     # pred = self.net_g(x = self.lq[i:j, :, :, :], event = self.voxel[i:j, :, :, :])  # mini batch all in 
-            
-                if isinstance(pred, list):
-                    pred = pred[-1]
+                pred,refined_event = pred[0],pred[1]
+                # if isinstance(pred, list):
+                #     pred = pred[-1]
                 pred = pred[:, :, :h, :w]
                 outs.append(pred)
                 i = j
@@ -276,10 +265,8 @@ class JointImageEventRestorationModel(BaseModel):
 
 
             lq = val_data['frame']
-            
-            # event = val_data['voxel']
             event = val_data['gen_event']
-            # event = torch.flip(event,dims=[1])
+
 
             lq = torch.cat([lq,event],dim=(1))
             val_data['frame'] = lq

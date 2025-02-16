@@ -1,8 +1,8 @@
 # general settings
-name: EB_NAFNet_1e-3
+name: EB_NAFNet_1e-3_joint
 model_type: JointImageEventRestorationModel
 scale: 1
-num_gpu:  1
+num_gpu:  2
 manual_seed: 10
 
 datasets:
@@ -32,7 +32,7 @@ datasets:
     # data loader settings
     use_shuffle: true
     num_worker_per_gpu: 1
-    batch_size_per_gpu: 8 
+    batch_size_per_gpu: 6
 
 
   val:
@@ -59,7 +59,7 @@ dataset_name: GoPro
 
 # network structures
 network_g:
-  type: NAFNet
+  type: JointNAFNet
   width: 64
   enc_blk_nums: [1, 1, 1, 28]
   middle_blk_num: 1
