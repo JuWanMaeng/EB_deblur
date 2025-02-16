@@ -179,6 +179,7 @@ class H5ImageDataset(data.Dataset):
         # voxel = self.get_voxel(index)
         frame = self.transform_frame(frame, seed, transpose_to_CHW=False)  # to tensor
 
+        # gen_event = self.get_voxel(index)
         gen_event = self.get_gen_event(index)  
         gen_event[np.abs(gen_event) <= self.threshold] = 0
 
@@ -255,8 +256,8 @@ class H5ImageDataset(data.Dataset):
         """
         
         # normalize voxel to [-1,1]
-        # max_val = torch.max(torch.abs(voxel))
-        # voxel = voxel / max_val
+        max_val = torch.max(torch.abs(voxel))
+        voxel = voxel / max_val
 
         if self.vox_transform:
             random.seed(seed)

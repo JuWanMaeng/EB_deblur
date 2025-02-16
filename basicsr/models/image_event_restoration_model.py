@@ -432,7 +432,7 @@ class ImageEventRestorationModel(BaseModel):
             
             # event = val_data['voxel']
             event = val_data['gen_event']
-            event = torch.flip(event,dims=[1])
+            # event = torch.flip(event,dims=[1])
 
             lq = torch.cat([lq,event],dim=(1))
             val_data['frame'] = lq

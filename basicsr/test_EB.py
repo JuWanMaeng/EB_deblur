@@ -50,7 +50,7 @@ def main():
         rgb2bgr = opt['val'].get('rgb2bgr', True)
         # wheather use uint8 image to compute metrics
         use_image = opt['val'].get('use_image', True)
-        results = model.custom_validation(
+        results = model.validation(
             test_loader,
             current_iter=opt['name'],
             tb_logger=None,
