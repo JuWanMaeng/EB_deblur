@@ -1,8 +1,8 @@
 # general settings
-name: EB_NAFNet_GTevent
-model_type: ImageEventRestorationModel
+name: EB_NAFNet_1e-3
+model_type: JointImageEventRestorationModel
 scale: 1
-num_gpu:  2
+num_gpu:  1
 manual_seed: 10
 
 datasets:
@@ -10,7 +10,6 @@ datasets:
     name: gopro-h5-train
     type: H5ImageDataset
 
-    # dataroot: ./datasets/GoPro_scer/train
     dataroot: /workspace/data/GOPRO/train
 
     # keep true if use events
@@ -33,7 +32,7 @@ datasets:
     # data loader settings
     use_shuffle: true
     num_worker_per_gpu: 1
-    batch_size_per_gpu: 8 # 4 for 2080, 8 for titan
+    batch_size_per_gpu: 8 
 
 
   val:
@@ -76,7 +75,7 @@ path:
 train:
   optim_g:
     type: AdamW
-    lr: !!float 1e-4
+    lr: !!float 1e-3
     weight_decay: !!float 1e-3
     betas: [0.9, 0.9]
 
