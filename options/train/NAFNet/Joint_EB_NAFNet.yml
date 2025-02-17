@@ -1,8 +1,8 @@
 # general settings
-name: EB_NAFNet_1e-3_joint
+name: EB_NAFNet_1e-3_L2MaskRefine
 model_type: JointImageEventRestorationModel
 scale: 1
-num_gpu:  2
+num_gpu:  4
 manual_seed: 10
 
 datasets:
@@ -31,8 +31,8 @@ datasets:
 
     # data loader settings
     use_shuffle: true
-    num_worker_per_gpu: 1
-    batch_size_per_gpu: 6
+    num_worker_per_gpu: 2
+    batch_size_per_gpu: 8
 
 
   val:
@@ -92,6 +92,10 @@ train:
     type: PSNRLoss
     loss_weight: 1
     reduction: mean
+  # event_opt:
+  #   type: MSELoss
+  #   loss_weight: 1
+  #   reduction: mean
 
 # validation settings
 val:

@@ -177,6 +177,9 @@ class H5ImageDataset(data.Dataset):
             frame_gt = self.transform_frame(frame_gt, seed, transpose_to_CHW=False)
 
         # voxel = self.get_voxel(index)
+        # item['voxel'] = self.transform_voxel(voxel, seed, transpose_to_CHW=False)
+
+    
         frame = self.transform_frame(frame, seed, transpose_to_CHW=False)  # to tensor
 
         # gen_event = self.get_voxel(index)
@@ -196,6 +199,7 @@ class H5ImageDataset(data.Dataset):
             item['frame'] = frame
         if self.return_gt_frame:
             item['frame_gt'] = frame_gt
+        
             
         item['seq'] = self.seq_name
         item['path'] = os.path.join(self.seq_name, 'image{:06d}'.format(index))
