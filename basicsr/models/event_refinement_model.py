@@ -66,6 +66,13 @@ class EventRefinementModel(BaseModel):
         else:
             self.cri_perceptual = None
 
+        if train_opt.get('KL_opt'):
+            kl_loss_type = train_opt['kl_loss_opt'].pop('type')
+            cri_kl_cls = getattr(loss_module, kl_loss_type)
+            self.cri_kl = cri_kl_cls(**train_opt['kl_loss_opt']).to(self.device)
+        else:
+            self.cri_kl = None
+
         if train_opt.get('fft_loss_opt'):
             fft_loss_type = train_opt['fft_loss_opt'].pop('type')
             cri_fft_cls = getattr(loss_module, fft_loss_type)
@@ -165,12 +172,9 @@ class EventRefinementModel(BaseModel):
 
             l_total += l_pix
             loss_dict['l_pix'] = l_pix
+        
 
-        # fft loss
-        if self.cri_fft:
-            l_fft = self.cri_fft(preds[-1], self.gt)
-            l_total += l_fft
-            loss_dict['l_fft'] = l_fft         
+
 
 
         l_total = l_total + 0 * sum(p.sum() for p in self.net_g.parameters())

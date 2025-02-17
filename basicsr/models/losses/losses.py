@@ -171,6 +171,28 @@ class PSNRLoss(nn.Module):
         return self.loss_weight * self.scale * torch.log(((pred - target) ** 2).mean(dim=(1, 2, 3)) + 1e-8).mean()
 
 
+class KLDivLoss(nn.Module):
+
+    def __init__(self, loss_weight=1.0, reduction='batchmean', scale_factor=5.0):
+        super(KLDivLoss, self).__init__()
+        assert reduction in ['batchmean', 'sum', 'mean']
+        self.loss_weight = loss_weight
+        self.reduction = reduction
+        self.scale_factor = scale_factor  # Scaling Factor 추가
+
+    def forward(self, pred, target):
+        assert len(pred.size()) == 4  # [B, C, H, W] 형태여야 함
+
+        # Scale Factor 적용하여 Softmax 변환
+        pred_prob = F.softmax(pred * self.scale_factor, dim=1)
+        target_prob = F.softmax(target * self.scale_factor, dim=1)
+
+        # KL Divergence 계산
+        loss = F.kl_div(pred_prob.log(), target_prob, reduction=self.reduction)
+
+        return self.loss_weight * loss
+
+
 class CustomMaskL1Loss(nn.Module):
     def __init__(self, loss_weight=1.0, lambda_mask=5.0, epsilon=0.01, reduction='mean'):
         """
