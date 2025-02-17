@@ -97,7 +97,7 @@ class H5ImageDataset(data.Dataset):
         """
         if self.h5_file is None:
             self.h5_file = h5py.File(self.data_path, 'r')
-        return self.h5_file['gen_event']['image{:09d}'.format(index)][:]
+        return self.h5_file['gen_event_refined']['image{:09d}'.format(index)][:]
 
 
     def __init__(self, opt, data_path, return_voxel=True, return_frame=True, return_gt_frame=True,
@@ -176,12 +176,17 @@ class H5ImageDataset(data.Dataset):
             frame_gt = self.get_gt_frame(index)
             frame_gt = self.transform_frame(frame_gt, seed, transpose_to_CHW=False)
 
-        # voxel = self.get_voxel(index)
+        voxel = self.get_voxel(index)
+        item['voxel'] = self.transform_voxel(voxel, seed, transpose_to_CHW=False)
+
+    
         frame = self.transform_frame(frame, seed, transpose_to_CHW=False)  # to tensor
 
         # gen_event = self.get_voxel(index)
         gen_event = self.get_gen_event(index)  
-        # gen_event[np.abs(gen_event) <= self.threshold] = 0
+        gen_event = gen_event[0:1,:,:]
+        gen_event[np.abs(gen_event) <= self.threshold] = 0
+        
 
         # normalize RGB
         if self.mean is not None or self.std is not None:
@@ -196,6 +201,7 @@ class H5ImageDataset(data.Dataset):
             item['frame'] = frame
         if self.return_gt_frame:
             item['frame_gt'] = frame_gt
+        
             
         item['seq'] = self.seq_name
         item['path'] = os.path.join(self.seq_name, 'image{:06d}'.format(index))
@@ -256,8 +262,8 @@ class H5ImageDataset(data.Dataset):
         """
         
         # normalize voxel to [-1,1]
-        # max_val = torch.max(torch.abs(voxel))
-        # voxel = voxel / max_val
+        max_val = torch.max(torch.abs(voxel))
+        voxel = voxel / max_val
 
         if self.vox_transform:
             random.seed(seed)

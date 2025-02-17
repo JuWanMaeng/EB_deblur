@@ -145,11 +145,11 @@ class JointNAFNet(nn.Module):
         event = y[:,3:,:,:]
         inp_img = y[:,0:3,:,:]
         refine_input = torch.cat([event, inp_img], dim=(1))
-        refined_event = self.refine(refine_input)
+        refined_event_output = self.refine(refine_input)
 
         # [-1, 1]
-        max_val = torch.max(torch.abs(refined_event))
-        refined_event = refined_event / max_val
+        max_val = torch.max(torch.abs(refined_event_output))
+        refined_event = refined_event_output / max_val
 
         inp = torch.cat([inp_img, refined_event], dim=(1))
 
@@ -173,7 +173,7 @@ class JointNAFNet(nn.Module):
         x = self.ending(x)
         x = x + inp_img
 
-        return x[:, :, :H, :W], refined_event
+        return x[:, :, :H, :W], refined_event_output
 
     def check_image_size(self, x):
         _, _, h, w = x.size()

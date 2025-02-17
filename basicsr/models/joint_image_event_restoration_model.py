@@ -59,6 +59,11 @@ class JointImageEventRestorationModel(BaseModel):
         else:
             self.cri_pix = None
 
+        if train_opt.get('event_opt'):
+            self.event_type = train_opt['event_opt'].pop('type')
+            cri_event_cls = getattr(loss_module, self.event_type)
+            self.cri_event = cri_event_cls(**train_opt['event_opt']).to(self.device)
+
         if train_opt.get('perceptual_opt'):
             percep_type = train_opt['perceptual_opt'].pop('type')
             cri_perceptual_cls = getattr(loss_module, percep_type)
@@ -163,6 +168,11 @@ class JointImageEventRestorationModel(BaseModel):
             l_total += l_fft
             loss_dict['l_fft'] = l_fft         
 
+        if self.cri_event:
+            l_event = self.cri_event(refined_event, self.voxel)
+            l_total += l_event
+            loss_dict['l_event'] = l_event
+
 
         l_total = l_total + 0 * sum(p.sum() for p in self.net_g.parameters())
 
@@ -181,6 +191,10 @@ class JointImageEventRestorationModel(BaseModel):
             if local_rank == '0':
                 # wandb.log({'train_loss': l_total.item(), 'iter':current_iter})
                 wandb.log({'train_loss': loss_dict['l_pix'].item(), 'iter':current_iter})
+                if self.cri_event:
+                    wandb.log({'event loss': loss_dict['l_event'].item(), 'iter':current_iter})
+
+                    
 
     def test(self):
         self.net_g.eval()

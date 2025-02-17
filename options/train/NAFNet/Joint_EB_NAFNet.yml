@@ -1,5 +1,5 @@
 # general settings
-name: EB_NAFNet_1e-3_joint
+name: EB_NAFNet_1e-3_joint_event
 model_type: JointImageEventRestorationModel
 scale: 1
 num_gpu:  2
@@ -90,6 +90,10 @@ train:
   # losses
   pixel_opt:
     type: PSNRLoss
+    loss_weight: 1
+    reduction: mean
+  event_opt:
+    type: MSELoss
     loss_weight: 1
     reduction: mean
 
