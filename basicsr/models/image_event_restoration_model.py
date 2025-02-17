@@ -58,6 +58,7 @@ class ImageEventRestorationModel(BaseModel):
                 self.device)
         else:
             self.cri_pix = None
+    
 
         if train_opt.get('perceptual_opt'):
             percep_type = train_opt['perceptual_opt'].pop('type')
@@ -326,6 +327,8 @@ class ImageEventRestorationModel(BaseModel):
             l_fft = self.cri_fft(preds[-1], self.gt)
             l_total += l_fft
             loss_dict['l_fft'] = l_fft         
+
+        
 
 
         l_total = l_total + 0 * sum(p.sum() for p in self.net_g.parameters())
