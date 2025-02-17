@@ -157,14 +157,7 @@ class ImageEventRefinementModel(BaseModel):
         if self.cri_pix:
             l_pix = 0.
 
-            if self.pixel_type == 'PSNRATLoss':
-                l_pix += self.cri_pix(*preds, self.gt)
-
-            elif self.pixel_type == 'PSNRGateLoss':
-                for pred in preds:
-                    l_pix += self.cri_pix(pred, self.gt, self.mask)
-
-            elif self.pixel_type == 'PSNRLoss':
+            if self.pixel_type == 'PSNRLoss':
                 for pred in preds:
                     l_pix += self.cri_pix(pred, self.voxel)
             
@@ -175,7 +168,6 @@ class ImageEventRefinementModel(BaseModel):
             l_total += l_pix
             loss_dict['l_pix'] = l_pix
 
-    
 
         # KL loss
         if self.cri_kl:
@@ -201,7 +193,8 @@ class ImageEventRefinementModel(BaseModel):
         if current_iter % 10 ==0:
             local_rank = os.environ.get('LOCAL_RANK', '0')
             if local_rank == '0':
-                wandb.log({'train_loss': loss_dict['l_pix'].item(), 'iter':current_iter})
+                if self.cri_pix:
+                    wandb.log({'train_loss': loss_dict['l_pix'].item(), 'iter':current_iter})
                 if self.cri_kl:
                     wandb.log({'kl_loss': loss_dict['l_kl'].item(), 'iter':current_iter})
 

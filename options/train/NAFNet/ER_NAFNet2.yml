@@ -1,4 +1,4 @@
-name: IER_KL(1,5)_1e-3
+name: IER_KL(only,5)
 model_type: ImageEventRefinementModel
 scale: 1
 num_gpu: 2
