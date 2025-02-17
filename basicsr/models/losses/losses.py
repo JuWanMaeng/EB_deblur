@@ -184,8 +184,8 @@ class KLDivLoss(nn.Module):
         assert len(pred.size()) == 4  # [B, C, H, W] 형태여야 함
 
         # Scale Factor 적용하여 Softmax 변환
-        pred_prob = F.softmax(pred * self.scale_factor, dim=1)
-        target_prob = F.softmax(target * self.scale_factor, dim=1)
+        pred_prob = F.softmax(pred * self.scale_factor, dim=1) + 1e-8
+        target_prob = F.softmax(target * self.scale_factor, dim=1) + 1e-8
 
         # KL Divergence 계산
         loss = F.kl_div(pred_prob.log(), target_prob, reduction=self.reduction)
