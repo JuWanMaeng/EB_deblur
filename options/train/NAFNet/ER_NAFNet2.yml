@@ -1,4 +1,4 @@
-name: IER_KL(L2(0.5),KL(1,5))
+name: IER_His_L1(1)_1e-3_bin500
 model_type: ImageEventRefinementModel
 scale: 1
 num_gpu: 2
@@ -92,16 +92,23 @@ train:
 
   # losses
   pixel_opt:
-    type: MSELoss
-    loss_weight: 0.5
-    reduction: mean
-  
-  # losses
-  KL_opt:
-    type: KLDivLoss
+    type: L1Loss
     loss_weight: 1
     reduction: mean
-    scale_factor: 5
+  
+  # # losses
+  # KL_opt:
+  #   type: KLDivLoss
+  #   loss_weight: 1
+  #   reduction: mean
+  #   scale_factor: 5
+
+    # losses
+  his_opt:
+    type: HistogramLoss
+    loss_weight: 1
+    num_bins: 500
+    distance_type: l2
 
 
 # validation settings

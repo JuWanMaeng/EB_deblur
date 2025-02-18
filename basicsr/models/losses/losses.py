@@ -220,77 +220,57 @@ class CustomMaskL1Loss(nn.Module):
         return self.loss_weight * loss
 
 
-class CustomMaskL2Loss(nn.Module):
-    def __init__(self, loss_weight=1.0, lambda_mask=2.0,reduction='mean'):
+class HistogramLoss(nn.Module):
+    def __init__(self, loss_weight=1.0, num_bins=50, val_range=(-1, 1), 
+                 distance_type='l2'):
         """
-        Custom Masked L2 Loss (MSE Loss)
-
         Args:
-            loss_weight (float): 전체 손실에 곱할 가중치.
-            lambda_mask (float): GT 이벤트가 0에 가까운 영역에 추가적으로 적용할 페널티 강도.
-            epsilon (float): GT 이벤트가 0로 간주할 임계값.
-            reduction (str): 'mean'만 지원.
+            loss_weight (float): Loss에 곱할 가중치.
+            num_bins (int): 히스토그램 bin 개수.
+            val_range (tuple): (min_val, max_val) 값 범위.
+            distance_type (str): 'l1', 'l2', 'chi2', 'js' 등.
         """
-        super(CustomMaskL2Loss, self).__init__()
-        assert reduction == 'mean', "Only 'mean' reduction is supported."
+        super().__init__()
         self.loss_weight = loss_weight
-        self.lambda_mask = lambda_mask
-    
-    def forward(self, pred, target):
-        # GT 이벤트가 0에 가까운 픽셀에 대해 마스크 생성
-        mask = (target.abs() == 0).float()
-        weight = 1.0 + self.lambda_mask * mask
-        # L2 손실 (제곱 오차) 계산
-        loss = (weight * (pred - target) ** 2).mean()
+        self.num_bins = num_bins
+        self.val_min, self.val_max = val_range
+        self.distance_type = distance_type
+
+    def forward(self, pred, gt):
+        """
+        Args:
+            pred, gt: [B, C, H, W] 등 다차원 텐서.
+        Returns:
+            두 히스토그램 간의 거리(loss)에 loss_weight를 곱한 값.
+        """
+        # 1) Flatten
+        pred_flat = pred.view(-1)
+        gt_flat = gt.view(-1)
+
+        # 2) histc로 히스토그램 계산
+        hist_pred = torch.histc(pred_flat, bins=self.num_bins,
+                                min=self.val_min, max=self.val_max)
+        hist_gt = torch.histc(gt_flat, bins=self.num_bins,
+                              min=self.val_min, max=self.val_max)
+
+        # 3) 정규화 (합이 1이 되도록)
+        hist_pred = hist_pred / (hist_pred.sum() + 1e-8)
+        hist_gt   = hist_gt   / (hist_gt.sum()   + 1e-8)
+
+        # 4) 두 히스토그램 간 거리 계산
+        if self.distance_type == 'l1':
+            loss = torch.sum(torch.abs(hist_pred - hist_gt))
+        elif self.distance_type == 'l2':
+            loss = torch.sum((hist_pred - hist_gt)**2)
+        elif self.distance_type == 'chi2':
+            diff = (hist_pred - hist_gt)**2 / (hist_pred + hist_gt + 1e-8)
+            loss = torch.sum(diff)
+        elif self.distance_type == 'js':
+            m = 0.5 * (hist_pred + hist_gt)
+            js = 0.5 * (F.kl_div(m.log(), hist_pred, reduction='sum') + 
+                        F.kl_div(m.log(), hist_gt, reduction='sum'))
+            loss = js
+        else:
+            raise ValueError(f"Unsupported distance type: {self.distance_type}")
+
         return self.loss_weight * loss
-
-
-class CustomMaskPSNRLoss(nn.Module):
-    def __init__(self, loss_weight=1.0, lambda_mask=5.0, epsilon=0.01, reduction='mean', toY=False):
-        """
-        Custom Masked PSNR Loss
-
-        PSNR을 계산할 때, GT 이벤트가 0에 가까운 영역에 대해 추가 가중치를 적용하여
-        weighted MSE를 구한 뒤 로그 변환하여 손실로 사용.
-
-        Args:
-            loss_weight (float): 전체 손실에 곱할 가중치.
-            lambda_mask (float): GT 이벤트가 0에 가까운 영역에 추가적으로 적용할 페널티 강도.
-            epsilon (float): GT 이벤트가 0로 간주할 임계값.
-            reduction (str): 'mean'만 지원.
-            toY (bool): True이면, 입력을 Y 채널로 변환 후 계산 (예: YUV 변환).
-        """
-        super(CustomMaskPSNRLoss, self).__init__()
-        assert reduction == 'mean', "Only 'mean' reduction is supported."
-        self.loss_weight = loss_weight
-        self.lambda_mask = lambda_mask
-        self.epsilon = epsilon
-        self.toY = toY
-        self.scale = 10 / np.log(10)
-        # Y 채널 변환을 위한 계수 (예: ITU-R BT.601)
-        self.coef = torch.tensor([65.481, 128.553, 24.966]).reshape(1, 3, 1, 1)
-        self.first = True
-
-    def forward(self, pred, target):
-        # Y 채널로 변환할 경우 (예: RGB -> Y)
-        if self.toY:
-            if self.first:
-                self.coef = self.coef.to(pred.device)
-                self.first = False
-            pred = (pred * self.coef).sum(dim=1, keepdim=True) + 16.
-            target = (target * self.coef).sum(dim=1, keepdim=True) + 16.
-            pred, target = pred / 255., target / 255.
-        
-        # GT 이벤트가 0에 가까운 영역에 대해 마스크 생성 및 가중치 계산
-        mask = (target.abs() < self.epsilon).float()
-        weight = 1.0 + self.lambda_mask * mask
-        
-        # 각 배치별로 weighted MSE를 계산:
-        # (sum(weight * (pred-target)^2) / sum(weight)) 의 형태로 계산
-        weighted_sum = (weight * (pred - target) ** 2).sum(dim=(1,2,3))
-        normalization = weight.sum(dim=(1,2,3)) + 1e-8  # 0 나누는 경우 방지
-        weighted_mse = weighted_sum / normalization
-        
-        # PSNR loss: scale * log(weighted_mse + 1e-8)
-        loss = self.loss_weight * self.scale * torch.log(weighted_mse + 1e-8).mean()
-        return loss
