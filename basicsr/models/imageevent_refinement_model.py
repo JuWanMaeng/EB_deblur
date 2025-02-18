@@ -80,8 +80,8 @@ class ImageEventRefinementModel(BaseModel):
         else:
             self.cri_fft = None
 
-        if self.cri_pix is None and self.cri_perceptual is None:
-            raise ValueError('Both pixel and perceptual losses are None.')
+        # if self.cri_pix is None and self.cri_perceptual is None:
+        #     raise ValueError('Both pixel and perceptual losses are None.')
 
         # set up optimizers and schedulers
         self.setup_optimizers()
@@ -172,7 +172,7 @@ class ImageEventRefinementModel(BaseModel):
         # KL loss
         if self.cri_kl:
             l_kl = 0
-            l_kl += self.cri_kl(pred,self.voxel)
+            l_kl += self.cri_kl(self.output,self.voxel)
 
             l_total += l_kl
             loss_dict['l_kl'] = l_kl

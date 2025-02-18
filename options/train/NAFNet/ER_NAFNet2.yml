@@ -91,10 +91,10 @@ train:
   warmup_iter: -1 # no warm up
 
   # losses
-  pixel_opt:
-    type: MSELoss
-    loss_weight: 1
-    reduction: mean
+  # pixel_opt:
+  #   type: MSELoss
+  #   loss_weight: 1
+  #   reduction: mean
   
   # losses
   KL_opt:
