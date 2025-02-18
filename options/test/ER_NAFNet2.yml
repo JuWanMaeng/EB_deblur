@@ -1,4 +1,4 @@
-name: Gopro_test
+name: Gopro_train
 model_type: ImageEventRefinementModel
 scale: 1
 num_gpu: 2
@@ -10,7 +10,7 @@ datasets:
     type: H5ImageDataset
 
     # dataroot: ./datasets/test
-    dataroot: /workspace/data/GOPRO/test
+    dataroot: /workspace/data/GOPRO/train
 
     norm_voxel: true  
     return_voxel: true
@@ -37,7 +37,7 @@ network_g:
 
 # path
 path:
-  pretrain_network_g: /workspace/FFTformer/pretrained_model/ER_NAFNet/KL_35K.pth
+  pretrain_network_g: /workspace/FFTformer/pretrain_model/KL_65K.pth
   strict_load_g: true
   resume_state: ~
 
