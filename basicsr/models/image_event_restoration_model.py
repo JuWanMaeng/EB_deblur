@@ -115,6 +115,7 @@ class ImageEventRestorationModel(BaseModel):
     def feed_data(self, data):
 
         self.lq = data['frame'].to(self.device)
+        self.lq = self.lq.float()
         if 'voxel' in data:
             self.voxel=data['voxel'].to(self.device) 
         if 'mask' in data:

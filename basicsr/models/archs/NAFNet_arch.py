@@ -82,7 +82,7 @@ class NAFBlock(nn.Module):
 
 class NAFNet(nn.Module):
 
-    def __init__(self, img_channel=6, width=16, middle_blk_num=1, enc_blk_nums=[], dec_blk_nums=[]):
+    def __init__(self, img_channel=3, width=16, middle_blk_num=1, enc_blk_nums=[], dec_blk_nums=[]):
         super().__init__()
 
         self.intro = nn.Conv2d(in_channels=9, out_channels=width, kernel_size=3, padding=1, stride=1, groups=1,
@@ -133,7 +133,8 @@ class NAFNet(nn.Module):
         B, C, H, W = y.shape
         if y.shape[1] != 3:
             inp = y
-            inp_img = y[:,0:6,:,:]  # event or img
+            # inp_img = y[:,0:6,:,:]  # event 
+            inp_img = y[:,0:3,:,:]  # img
         else:
             inp = y
             inp_img = y
