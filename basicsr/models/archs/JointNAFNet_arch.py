@@ -133,7 +133,7 @@ class JointNAFNet(nn.Module):
 
         self.refine = NAFNet(img_channel=6, width=32, middle_blk_num=1, enc_blk_nums=[1, 1, 1, 28], dec_blk_nums=[1, 1, 1, 1])
         # train setting #
-        refine_checkpoint = torch.load('/workspace/FFTformer/pretrain_model/KL_65K.pth')
+        refine_checkpoint = torch.load('/workspace/FFTformer/pretrain_model/ER_NAFNet/L1_K1_0.1_1.pth')
         self.refine.load_state_dict(refine_checkpoint['params'])
         self.refine.eval()
 

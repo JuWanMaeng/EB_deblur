@@ -1,5 +1,5 @@
 # general settings
-name: EB_NAFNet_1e-3_KL
+name: EB_NAFNet_1e-3_L1_KL_0.1_1
 model_type: JointImageEventRestorationModel
 scale: 1
 num_gpu:  4
