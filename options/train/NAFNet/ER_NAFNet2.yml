@@ -1,4 +1,4 @@
-name: IER_KL(L2(0.5),KL(1,5))
+name: IER_KL(L1(0.1),KL(1,5))
 model_type: ImageEventRefinementModel
 scale: 1
 num_gpu: 2
@@ -31,7 +31,7 @@ datasets:
 
     # data loader settings
     use_shuffle: true
-    num_worker_per_gpu: 2
+    num_worker_per_gpu: 1
     batch_size_per_gpu: 8 # 4 for 2080, 8 for titan
 
 
@@ -96,8 +96,8 @@ train:
   #   loss_weight: 1
   #   reduction: mean
   pixel_opt:
-    type: MSELoss
-    loss_weight: 0.5
+    type: L1Loss
+    loss_weight: 0.1
     reduction: mean
   
   # losses
