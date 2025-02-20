@@ -37,7 +37,7 @@ network_g:
 
 # path
 path:
-  pretrain_network_g: /workspace/FFTformer/pretrained_model/ER_NAFNet/L2_KL_0.1_1.pth
+  pretrain_network_g: pretrain_model/ER_NAFNet/FFTL2_1:1.pth
   strict_load_g: true
   resume_state: ~
 
