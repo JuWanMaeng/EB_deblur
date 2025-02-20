@@ -1,4 +1,4 @@
-name: IER_KL(L1(0.1),KL(1,5))
+name: IER_FFT
 model_type: ImageEventRefinementModel
 scale: 1
 num_gpu: 2
@@ -95,17 +95,16 @@ train:
   #   type: MSELoss
   #   loss_weight: 1
   #   reduction: mean
-  pixel_opt:
-    type: L1Loss
-    loss_weight: 0.1
-    reduction: mean
+  # pixel_opt:
+  #   type: L1Loss
+  #   loss_weight: 0.1
+  #   reduction: mean
   
   # losses
-  KL_opt:
-    type: KLDivLoss
+  fft_loss_opt:
+    type: FFTLoss
     loss_weight: 1
     reduction: mean
-    scale_factor: 5
 
 
 # validation settings
