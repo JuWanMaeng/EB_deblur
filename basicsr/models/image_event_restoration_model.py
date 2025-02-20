@@ -100,16 +100,46 @@ class ImageEventRestorationModel(BaseModel):
         ratio = 0.1
 
         optim_type = train_opt['optim_g'].pop('type')
-        if optim_type == 'Adam':
-            self.optimizer_g = torch.optim.Adam([{'params': optim_params}, {'params': optim_params_lowlr, 'lr': train_opt['optim_g']['lr'] * ratio}],
-                                                **train_opt['optim_g'])
-        elif optim_type == 'AdamW':
-            self.optimizer_g = torch.optim.AdamW([{'params': optim_params}, {'params': optim_params_lowlr, 'lr': train_opt['optim_g']['lr'] * ratio}],
-                                                **train_opt['optim_g'])
 
+        if optim_type == 'Adam':
+            self.optimizer_g = torch.optim.Adam(
+                [{'params': optim_params},
+                {'params': optim_params_lowlr, 'lr': train_opt['optim_g']['lr'] * ratio}],
+                **train_opt['optim_g']
+            )
+        elif optim_type == 'AdamW':
+            self.optimizer_g = torch.optim.AdamW(
+                                                    [{'params': optim_params},
+                {'params': optim_params_lowlr, 'lr': train_opt['optim_g']['lr'] * ratio}],
+                **train_opt['optim_g']
+            )
+        elif optim_type == 'SGD':
+            self.optimizer_g = torch.optim.SGD(
+                [{'params': optim_params},
+                {'params': optim_params_lowlr, 'lr': train_opt['optim_g']['lr'] * ratio}],
+                **train_opt['optim_g']
+            )
+        elif optim_type == 'RMSprop':
+            self.optimizer_g = torch.optim.RMSprop(
+                [{'params': optim_params},
+                {'params': optim_params_lowlr, 'lr': train_opt['optim_g']['lr'] * ratio}],
+                    **train_opt['optim_g']
+                )
+        elif optim_type == 'Adagrad':
+            self.optimizer_g = torch.optim.Adagrad(
+                [{'params': optim_params},
+                {'params': optim_params_lowlr, 'lr': train_opt['optim_g']['lr'] * ratio}],
+                **train_opt['optim_g']
+            )
+        elif optim_type == 'Adamax':
+            self.optimizer_g = torch.optim.Adamax(
+                [{'params': optim_params},
+                {'params': optim_params_lowlr, 'lr': train_opt['optim_g']['lr'] * ratio}],
+            **train_opt['optim_g']
+            )
         else:
-            raise NotImplementedError(
-                f'optimizer {optim_type} is not supperted yet.')
+            raise NotImplementedError(f"Optimizer {optim_type} is not implemented")
+
         self.optimizers.append(self.optimizer_g)
 
     def feed_data(self, data):
