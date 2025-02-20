@@ -97,7 +97,7 @@ class H5ImageDataset(data.Dataset):
         """
         if self.h5_file is None:
             self.h5_file = h5py.File(self.data_path, 'r')
-        return self.h5_file['gen_event']['image{:09d}'.format(index)][:]
+        return self.h5_file['gen_event_cons']['image{:09d}'.format(index)][:]
 
 
     def __init__(self, opt, data_path, return_voxel=True, return_frame=True, return_gt_frame=True,
@@ -165,51 +165,51 @@ class H5ImageDataset(data.Dataset):
             self.dataset_len = len(file['images'].keys())
 
 
-        self.get_peak_point()
+        # self.get_peak_point()
 
 
-    # def __getitem__(self, index, seed=None):
+    def __getitem__(self, index, seed=None):
 
-    #     if index < 0 or index >= self.__len__():
-    #         raise IndexError
-    #     seed = random.randint(0, 2 ** 32) if seed is None else seed
-    #     item={}
-    #     frame = self.get_frame(index)
-    #     if self.return_gt_frame:
-    #         frame_gt = self.get_gt_frame(index)
-    #         frame_gt = self.transform_frame(frame_gt, seed, transpose_to_CHW=False)
+        if index < 0 or index >= self.__len__():
+            raise IndexError
+        seed = random.randint(0, 2 ** 32) if seed is None else seed
+        item={}
+        frame = self.get_frame(index)
+        if self.return_gt_frame:
+            frame_gt = self.get_gt_frame(index)
+            frame_gt = self.transform_frame(frame_gt, seed, transpose_to_CHW=False)
 
-    #     # voxel = self.get_voxel(index)
-    #     # item['voxel'] = self.transform_voxel(voxel, seed, transpose_to_CHW=False)
+        # voxel = self.get_voxel(index)
+        # item['voxel'] = self.transform_voxel(voxel, seed, transpose_to_CHW=False)
 
     
-    #     frame = self.transform_frame(frame, seed, transpose_to_CHW=False)  # to tensor
+        frame = self.transform_frame(frame, seed, transpose_to_CHW=False)  # to tensor
 
-    #     gen_event = self.get_voxel(index)
-    #     # gen_event = self.get_gen_event(index)  
-    #     # gen_event[np.abs(gen_event) <= self.threshold] = 0
+        # gen_event = self.get_voxel(index)
+        gen_event = self.get_gen_event(index)  
+        # gen_event[np.abs(gen_event) <= self.threshold] = 0
         
 
-    #     # normalize RGB
-    #     if self.mean is not None or self.std is not None:
-    #         normalize(frame, self.mean, self.std, inplace=True)
-    #         if self.return_gt_frame:
-    #             normalize(frame_gt, self.mean, self.std, inplace=True)
+        # normalize RGB
+        if self.mean is not None or self.std is not None:
+            normalize(frame, self.mean, self.std, inplace=True)
+            if self.return_gt_frame:
+                normalize(frame_gt, self.mean, self.std, inplace=True)
 
-    #     if self.return_gen_event:
-    #         gen_event = torch.from_numpy(gen_event)
-    #         item['gen_event'] = self.transform_gen_event(gen_event,seed)
-    #     if self.return_frame:
-    #         item['frame'] = frame
-    #     if self.return_gt_frame:
-    #         item['frame_gt'] = frame_gt
+        if self.return_gen_event:
+            gen_event = torch.from_numpy(gen_event)
+            item['gen_event'] = self.transform_gen_event(gen_event,seed)
+        if self.return_frame:
+            item['frame'] = frame
+        if self.return_gt_frame:
+            item['frame_gt'] = frame_gt
         
             
-    #     item['seq'] = self.seq_name
-    #     item['path'] = os.path.join(self.seq_name, 'image{:06d}'.format(index))
+        item['seq'] = self.seq_name
+        item['path'] = os.path.join(self.seq_name, 'image{:06d}'.format(index))
 
 
-    #     return item
+        return item
     
     ############ noise debugging #################
     # def __getitem__(self, index, seed=None):
@@ -245,37 +245,6 @@ class H5ImageDataset(data.Dataset):
 
 
     ###### peak cut debug ######
-    def __getitem__(self, index, seed=None):
-        if index < 0 or index >= self.__len__():
-            raise IndexError
-        seed = random.randint(0, 2 ** 32) if seed is None else seed
-        item = {}
-        
-        # 프레임과 GT 프레임 불러오기
-        frame = self.get_frame(index)
-        if self.return_gt_frame:
-            frame_gt = self.get_gt_frame(index)
-            frame_gt = self.transform_frame(frame_gt, seed, transpose_to_CHW=False)
-        frame = self.transform_frame(frame, seed, transpose_to_CHW=False)  # to tensor
-
-
-        gen_event = self.get_gen_event(index) 
-        gen_event = self.discretize_values_bidirectional(gen_event,self.x_peak)
-        
-        
-        # 이후 이벤트 처리: tensor 변환 등
-        if self.return_gen_event:
-            gen_event = torch.from_numpy(gen_event)
-            item['gen_event'] = self.transform_gen_event(gen_event, seed)
-        if self.return_frame:
-            item['frame'] = frame
-        if self.return_gt_frame:
-            item['frame_gt'] = frame_gt
-
-        item['seq'] = self.seq_name
-        item['path'] = os.path.join(self.seq_name, 'image{:06d}'.format(index))
-
-        return item
 
 
     def __len__(self):
@@ -330,20 +299,20 @@ class H5ImageDataset(data.Dataset):
         """
         
         # normalize voxel to [-1,1]
-        max_val = torch.max(torch.abs(voxel))
-        voxel = voxel / max_val
+        # max_val = torch.max(torch.abs(voxel))
+        # voxel = voxel / max_val
 
         if self.vox_transform:
             random.seed(seed)
             voxel = self.vox_transform(voxel)
 
         # 가우시안 노이즈 추가 (옵션: noise_std가 opt에 설정되어 있으면)
-        noise_std = self.opt.get('noise_std', 0)  # noise_std가 없으면 기본 0 (노이즈 없음)
-        if noise_std > 0:
-            noise = np.random.normal(loc=0, scale=noise_std, size=voxel.shape)
-            voxel = voxel + noise
-            # 모델 입력 전에 [-1, 1] 범위로 클리핑
-            voxel = np.clip(voxel, -1, 1)
+        # noise_std = self.opt.get('noise_std', 0)  # noise_std가 없으면 기본 0 (노이즈 없음)
+        # if noise_std > 0:
+        #     noise = np.random.normal(loc=0, scale=noise_std, size=voxel.shape)
+        #     voxel = voxel + noise
+        #     # 모델 입력 전에 [-1, 1] 범위로 클리핑
+        #     voxel = np.clip(voxel, -1, 1)
 
         return voxel
 
@@ -377,102 +346,3 @@ class H5ImageDataset(data.Dataset):
                 collated_events[k] = default_collate(collated_events[k])
         return collated_events
     
-
-    def discretize_values_bidirectional(self, values, peaks):
-        """
-        values: ND numpy array of real values (예: shape = (6, H, W))
-        peaks:  1D array of 구간 경계 (예: [-1, -0.5, 0, 0.5, 1]), 오름차순 정렬 가정
-
-        규칙:
-        - x < 0  => 구간의 '상위 경계값'으로 매핑 (값을 올림)
-        - x >= 0 => 구간의 '하위 경계값'으로 매핑 (값을 내림)
-        """
-        # 결과를 담을 배열(동일 shape) 초기화
-        mapped_values = np.zeros_like(values, dtype=float)
-
-        # 음수/양수 마스크
-        neg_mask = (values < 0)
-        pos_mask = (values >= 0)
-
-        # -------------------------------
-        # (A) 음수 영역: 상위 경계로 매핑
-        def map_to_upper(vals_neg, boundary):
-            """
-            vals_neg: 1D or ND array (음수 부분만 슬라이싱)
-            boundary: 1D array (peaks)
-            """
-            # 1) boundary[0]보다 작으면 boundary[0], boundary[-1]보다 크면 boundary[-1]로 클램핑
-            vals_left_clamped = np.where(vals_neg < boundary[0], boundary[0], vals_neg)
-            vals_clamped = np.where(vals_left_clamped >= boundary[-1], boundary[-1], vals_left_clamped)
-
-            # 2) 구간 인덱스 찾기
-            indices = np.searchsorted(boundary, vals_clamped, side='right') - 1
-            # 3) valid range로 클램핑
-            indices = np.clip(indices, 0, len(boundary) - 2)
-
-            # 4) 상위 경계값
-            return boundary[indices + 1]
-
-        # -------------------------------
-        # (B) 양수 영역: 하위 경계로 매핑
-        def map_to_lower(vals_pos, boundary):
-            """
-            vals_pos: 1D or ND array (양수 부분만 슬라이싱)
-            boundary: 1D array (peaks)
-            """
-            # 1) 클램핑
-            vals_left_clamped = np.where(vals_pos < boundary[0], boundary[0], vals_pos)
-            vals_clamped = np.where(vals_left_clamped >= boundary[-1], boundary[-1], vals_left_clamped)
-
-            # 2) 구간 인덱스 찾기
-            indices = np.searchsorted(boundary, vals_clamped, side='right') - 1
-            indices = np.clip(indices, 0, len(boundary) - 2)
-
-            # 3) 하위 경계값
-            return boundary[indices]
-
-        # 음수/양수 부분 각각 매핑 후, 결과에 반영
-        mapped_values[neg_mask] = map_to_upper(values[neg_mask], peaks)
-        mapped_values[pos_mask] = map_to_lower(values[pos_mask], peaks)
-
-        return mapped_values
-
-    def get_peak_point(self):
-
-        self.x_peak = np.array([-0.949     , -0.941     , -0.93700004, -0.899     , -0.895     ,
-            -0.889     , -0.883     , -0.875     , -0.849     , -0.843     ,
-            -0.833     , -0.823     , -0.81299996, -0.799     , -0.78900003,
-            -0.777     , -0.765     , -0.749     , -0.737     , -0.73300004,
-            -0.723     , -0.705     , -0.699     , -0.685     , -0.667     ,
-            -0.649     , -0.643     , -0.63100004, -0.625     , -0.611     ,
-            -0.599     , -0.589     , -0.579     , -0.571     , -0.56299996,
-            -0.555     , -0.549     , -0.533     , -0.527     , -0.499     ,
-            -0.491     , -0.487     , -0.481     , -0.473     , -0.467     ,
-            -0.463     , -0.45499998, -0.449     , -0.445     , -0.43699998,
-            -0.42900002, -0.421     , -0.411     , -0.399     , -0.389     ,
-            -0.385     , -0.375     , -0.36900002, -0.357     , -0.353     ,
-            -0.34899998, -0.333     , -0.329     , -0.315     , -0.29900002,
-            -0.29500002, -0.28500003, -0.277     , -0.26700002, -0.263     ,
-            -0.249     , -0.235     , -0.223     , -0.215     , -0.211     ,
-            -0.199     , -0.187     , -0.177     , -0.167     , -0.157     ,
-            -0.149     , -0.133     , -0.125     , -0.117     , -0.111     ,
-            -0.105     , -0.099     , -0.067     , -0.063     , -0.059     ,
-            -0.053     , -0.049     ,  0.001     ,  0.051     ,  0.059     ,
-                0.063     ,  0.067     ,  0.07099999,  0.101     ,  0.105     ,
-                0.111     ,  0.117     ,  0.125     ,  0.133     ,  0.151     ,
-                0.157     ,  0.167     ,  0.177     ,  0.187     ,  0.201     ,
-                0.211     ,  0.215     ,  0.223     ,  0.235     ,  0.251     ,
-                0.263     ,  0.26700002,  0.277     ,  0.28500003,  0.29500002,
-                0.301     ,  0.315     ,  0.333     ,  0.351     ,  0.357     ,
-                0.36900002,  0.375     ,  0.38099998,  0.389     ,  0.393     ,
-                0.40100002,  0.411     ,  0.41500002,  0.421     ,  0.42900002,
-                0.43699998,  0.44099998,  0.445     ,  0.45099998,  0.467     ,
-                0.473     ,  0.487     ,  0.49699998,  0.501     ,  0.527     ,
-                0.533     ,  0.551     ,  0.555     ,  0.56299996,  0.571     ,
-                0.579     ,  0.589     ,  0.601     ,  0.611     ,  0.625     ,
-                0.63100004,  0.643     ,  0.647     ,  0.651     ,  0.667     ,
-                0.685     ,  0.701     ,  0.705     ,  0.723     ,  0.737     ,
-                0.751     ,  0.765     ,  0.777     ,  0.78900003,  0.801     ,
-                0.81299996,  0.823     ,  0.833     ,  0.843     ,  0.851     ,
-                0.875     ,  0.883     ,  0.889     ,  0.895     ,  0.901     ,
-                0.929     ,  0.93700004,  0.941     ,  0.947     ,  0.951     ])
