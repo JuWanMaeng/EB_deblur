@@ -169,7 +169,16 @@ class H5ImageDataset(data.Dataset):
 
 
     def __getitem__(self, index, seed=None):
+    def __getitem__(self, index, seed=None):
 
+        if index < 0 or index >= self.__len__():
+            raise IndexError
+        seed = random.randint(0, 2 ** 32) if seed is None else seed
+        item={}
+        frame = self.get_frame(index)
+        if self.return_gt_frame:
+            frame_gt = self.get_gt_frame(index)
+            frame_gt = self.transform_frame(frame_gt, seed, transpose_to_CHW=False)
         if index < 0 or index >= self.__len__():
             raise IndexError
         seed = random.randint(0, 2 ** 32) if seed is None else seed
@@ -187,6 +196,8 @@ class H5ImageDataset(data.Dataset):
 
         # gen_event = self.get_voxel(index)
         gen_event = self.get_gen_event(index)  
+
+
         # gen_event[np.abs(gen_event) <= self.threshold] = 0
         
 
@@ -244,7 +255,6 @@ class H5ImageDataset(data.Dataset):
     #     return item
 
 
-    ###### peak cut debug ######
 
 
     def __len__(self):
@@ -306,13 +316,7 @@ class H5ImageDataset(data.Dataset):
             random.seed(seed)
             voxel = self.vox_transform(voxel)
 
-        # 가우시안 노이즈 추가 (옵션: noise_std가 opt에 설정되어 있으면)
-        # noise_std = self.opt.get('noise_std', 0)  # noise_std가 없으면 기본 0 (노이즈 없음)
-        # if noise_std > 0:
-        #     noise = np.random.normal(loc=0, scale=noise_std, size=voxel.shape)
-        #     voxel = voxel + noise
-        #     # 모델 입력 전에 [-1, 1] 범위로 클리핑
-        #     voxel = np.clip(voxel, -1, 1)
+
 
         return voxel
 

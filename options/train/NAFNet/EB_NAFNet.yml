@@ -36,6 +36,7 @@ datasets:
     batch_size_per_gpu: 8 # 4 for 2080, 8 for titan
 
     # noise_std: 0.5
+    # noise_std: 0.5
 
 
   val:
