@@ -44,4 +44,4 @@ scores.ipynb
 basicsr/utils/options.py
 
 event_data_analysis.ipynb
-event_image.ipynb
+event_vis_mag.ipynb
