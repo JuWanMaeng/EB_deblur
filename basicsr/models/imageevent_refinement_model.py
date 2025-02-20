@@ -179,6 +179,7 @@ class ImageEventRefinementModel(BaseModel):
         if self.cri_kl:
             l_kl = 0
             l_kl += self.cri_kl(self.output,self.voxel)
+            l_kl += self.cri_kl(self.output,self.voxel)
 
             l_total += l_kl
             loss_dict['l_kl'] = l_kl
