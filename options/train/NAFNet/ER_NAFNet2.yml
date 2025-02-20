@@ -1,7 +1,7 @@
-name: IER_L2_FFT(1)
+name: IER_magFFT:L2_0.1:1_1e-3
 model_type: ImageEventRefinementModel
 scale: 1
-num_gpu: 4
+num_gpu: 2
 manual_seed: 10
 
 datasets:
@@ -31,7 +31,7 @@ datasets:
 
     # data loader settings
     use_shuffle: true
-    num_worker_per_gpu: 1
+    num_worker_per_gpu: 2
     batch_size_per_gpu: 8 # 4 for 2080, 8 for titan
 
 
@@ -91,33 +91,20 @@ train:
   warmup_iter: -1 # no warm up
 
   # losses
-  # pixel_opt:
-  #   type: MSELoss
-  #   loss_weight: 1
-  #   reduction: mean
   pixel_opt:
-    type: L1Loss
+    type: MSELoss
     loss_weight: 1
     reduction: mean
-
+  # pixel_opt:
+  #   type: L1Loss
+  #   loss_weight: 0.1
+  #   reduction: mean
+  
+  # losses
   fft_loss_opt:
     type: FFTLoss
-    loss_weight: 1
+    loss_weight: 0.1
     reduction: mean
-  
-  # # losses
-  # KL_opt:
-  #   type: KLDivLoss
-  #   loss_weight: 1
-  #   reduction: mean
-  #   scale_factor: 5
-
-    # losses
-  # his_opt:
-  #   type: HistogramLoss
-  #   loss_weight: 1
-  #   num_bins: 500
-  #   distance_type: l2
 
 
 # validation settings

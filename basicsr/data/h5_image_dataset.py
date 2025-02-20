@@ -180,13 +180,7 @@ class H5ImageDataset(data.Dataset):
         frame = self.transform_frame(frame, seed, transpose_to_CHW=False)  # to tensor
 
         gen_event = self.get_gen_event(index)  # [-1,1] , [6,H,W]
-        # gen_event[np.abs(gen_event) <= self.threshold] = 0
 
-        # normalize RGB
-        # if self.mean is not None or self.std is not None:
-        #     normalize(frame, self.mean, self.std, inplace=True)
-        #     if self.return_gt_frame:
-        #         normalize(frame_gt, self.mean, self.std, inplace=True)
 
         if self.return_gen_event:
             gen_event = torch.from_numpy(gen_event)
