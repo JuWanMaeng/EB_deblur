@@ -168,48 +168,50 @@ class H5ImageDataset(data.Dataset):
         self.get_peak_point()
 
 
-    # def __getitem__(self, index, seed=None):
+    def __getitem__(self, index, seed=None):
 
-    #     if index < 0 or index >= self.__len__():
-    #         raise IndexError
-    #     seed = random.randint(0, 2 ** 32) if seed is None else seed
-    #     item={}
-    #     frame = self.get_frame(index)
-    #     if self.return_gt_frame:
-    #         frame_gt = self.get_gt_frame(index)
-    #         frame_gt = self.transform_frame(frame_gt, seed, transpose_to_CHW=False)
+        if index < 0 or index >= self.__len__():
+            raise IndexError
+        seed = random.randint(0, 2 ** 32) if seed is None else seed
+        item={}
+        frame = self.get_frame(index)
+        if self.return_gt_frame:
+            frame_gt = self.get_gt_frame(index)
+            frame_gt = self.transform_frame(frame_gt, seed, transpose_to_CHW=False)
 
-    #     # voxel = self.get_voxel(index)
-    #     # item['voxel'] = self.transform_voxel(voxel, seed, transpose_to_CHW=False)
+        # voxel = self.get_voxel(index)
+        # item['voxel'] = self.transform_voxel(voxel, seed, transpose_to_CHW=False)
 
     
-    #     frame = self.transform_frame(frame, seed, transpose_to_CHW=False)  # to tensor
+        frame = self.transform_frame(frame, seed, transpose_to_CHW=False)  # to tensor
 
-    #     gen_event = self.get_voxel(index)
-    #     # gen_event = self.get_gen_event(index)  
-    #     # gen_event[np.abs(gen_event) <= self.threshold] = 0
+        # gen_event = self.get_voxel(index)
+        gen_event = self.get_gen_event(index)  
+
+
+        # gen_event[np.abs(gen_event) <= self.threshold] = 0
         
 
-    #     # normalize RGB
-    #     if self.mean is not None or self.std is not None:
-    #         normalize(frame, self.mean, self.std, inplace=True)
-    #         if self.return_gt_frame:
-    #             normalize(frame_gt, self.mean, self.std, inplace=True)
+        # normalize RGB
+        if self.mean is not None or self.std is not None:
+            normalize(frame, self.mean, self.std, inplace=True)
+            if self.return_gt_frame:
+                normalize(frame_gt, self.mean, self.std, inplace=True)
 
-    #     if self.return_gen_event:
-    #         gen_event = torch.from_numpy(gen_event)
-    #         item['gen_event'] = self.transform_gen_event(gen_event,seed)
-    #     if self.return_frame:
-    #         item['frame'] = frame
-    #     if self.return_gt_frame:
-    #         item['frame_gt'] = frame_gt
+        if self.return_gen_event:
+            gen_event = torch.from_numpy(gen_event)
+            item['gen_event'] = self.transform_gen_event(gen_event,seed)
+        if self.return_frame:
+            item['frame'] = frame
+        if self.return_gt_frame:
+            item['frame_gt'] = frame_gt
         
             
-    #     item['seq'] = self.seq_name
-    #     item['path'] = os.path.join(self.seq_name, 'image{:06d}'.format(index))
+        item['seq'] = self.seq_name
+        item['path'] = os.path.join(self.seq_name, 'image{:06d}'.format(index))
 
 
-    #     return item
+        return item
     
     ############ noise debugging #################
     # def __getitem__(self, index, seed=None):
@@ -244,38 +246,6 @@ class H5ImageDataset(data.Dataset):
     #     return item
 
 
-    ###### peak cut debug ######
-    def __getitem__(self, index, seed=None):
-        if index < 0 or index >= self.__len__():
-            raise IndexError
-        seed = random.randint(0, 2 ** 32) if seed is None else seed
-        item = {}
-        
-        # 프레임과 GT 프레임 불러오기
-        frame = self.get_frame(index)
-        if self.return_gt_frame:
-            frame_gt = self.get_gt_frame(index)
-            frame_gt = self.transform_frame(frame_gt, seed, transpose_to_CHW=False)
-        frame = self.transform_frame(frame, seed, transpose_to_CHW=False)  # to tensor
-
-
-        gen_event = self.get_gen_event(index) 
-        gen_event = self.discretize_values_bidirectional(gen_event,self.x_peak)
-        
-        
-        # 이후 이벤트 처리: tensor 변환 등
-        if self.return_gen_event:
-            gen_event = torch.from_numpy(gen_event)
-            item['gen_event'] = self.transform_gen_event(gen_event, seed)
-        if self.return_frame:
-            item['frame'] = frame
-        if self.return_gt_frame:
-            item['frame_gt'] = frame_gt
-
-        item['seq'] = self.seq_name
-        item['path'] = os.path.join(self.seq_name, 'image{:06d}'.format(index))
-
-        return item
 
 
     def __len__(self):
@@ -337,13 +307,7 @@ class H5ImageDataset(data.Dataset):
             random.seed(seed)
             voxel = self.vox_transform(voxel)
 
-        # 가우시안 노이즈 추가 (옵션: noise_std가 opt에 설정되어 있으면)
-        noise_std = self.opt.get('noise_std', 0)  # noise_std가 없으면 기본 0 (노이즈 없음)
-        if noise_std > 0:
-            noise = np.random.normal(loc=0, scale=noise_std, size=voxel.shape)
-            voxel = voxel + noise
-            # 모델 입력 전에 [-1, 1] 범위로 클리핑
-            voxel = np.clip(voxel, -1, 1)
+
 
         return voxel
 
