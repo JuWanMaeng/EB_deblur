@@ -73,13 +73,13 @@ class ImageEventRefinementModel(BaseModel):
         else:
             self.cri_kl = None
 
-
-        if train_opt.get('his_opt'):
-            his_loss_type = train_opt['his_opt'].pop('type')
-            cri_his_cls = getattr(loss_module, his_loss_type)
-            self.cri_his = cri_his_cls(**train_opt['his_opt']).to(self.device)
+        if train_opt.get('fft_loss_opt'):
+            fft_loss_type = train_opt['fft_loss_opt'].pop('type')
+            cri_fft_cls = getattr(loss_module, fft_loss_type)
+            self.cri_fft = cri_fft_cls(**train_opt['fft_loss_opt']).to(self.device)
         else:
-            self.cri_his = None
+            self.cri_fft = None
+
 
 
         # set up optimizers and schedulers
@@ -168,6 +168,13 @@ class ImageEventRefinementModel(BaseModel):
             loss_dict['l_pix'] = l_pix
 
 
+        # FFT loss
+        if self.cri_fft:
+            l_fft = self.cri_fft(self.output, self.voxel)
+            l_total += l_fft
+            loss_dict['l_fft'] = l_fft 
+
+
         # KL loss
         if self.cri_kl:
             l_kl = 0
@@ -176,13 +183,6 @@ class ImageEventRefinementModel(BaseModel):
             l_total += l_kl
             loss_dict['l_kl'] = l_kl
 
-        # Histogram loss
-        if self.cri_his:
-            l_his = 0
-            l_his += self.cri_his(self.output,self.voxel)
-
-            l_total += l_his
-            loss_dict['l_his'] = l_his
 
 
         l_total = l_total + 0 * sum(p.sum() for p in self.net_g.parameters())
@@ -204,8 +204,10 @@ class ImageEventRefinementModel(BaseModel):
                     wandb.log({'train_loss': loss_dict['l_pix'].item() / self.cri_pix.loss_weight, 'iter':current_iter})
                 if self.cri_kl:
                     wandb.log({'kl_loss': loss_dict['l_kl'].item() / self.cri_kl.loss_weight, 'iter':current_iter})
-                if self.cri_his:
-                    wandb.log({'his_loss': loss_dict['l_his'].item() / self.cri_his.loss_weight, 'iter':current_iter})
+                if self.cri_fft:
+                    wandb.log({'fft_loss': loss_dict['l_fft'].item() / self.cri_fft.loss_weight, 'iter':current_iter})
+
+                wandb.log({'total_loss': l_total.item() , 'iter':current_iter})
 
 
     def test(self):

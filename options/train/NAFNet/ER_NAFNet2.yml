@@ -1,7 +1,7 @@
-name: IER_His_L1(1)_1e-3_bin500
+name: IER_L2_FFT(1)
 model_type: ImageEventRefinementModel
 scale: 1
-num_gpu: 2
+num_gpu: 4
 manual_seed: 10
 
 datasets:
@@ -95,6 +95,11 @@ train:
     type: L1Loss
     loss_weight: 1
     reduction: mean
+
+  fft_loss_opt:
+    type: FFTLoss
+    loss_weight: 1
+    reduction: mean
   
   # # losses
   # KL_opt:
@@ -104,11 +109,11 @@ train:
   #   scale_factor: 5
 
     # losses
-  his_opt:
-    type: HistogramLoss
-    loss_weight: 1
-    num_bins: 500
-    distance_type: l2
+  # his_opt:
+  #   type: HistogramLoss
+  #   loss_weight: 1
+  #   num_bins: 500
+  #   distance_type: l2
 
 
 # validation settings
