@@ -1,7 +1,7 @@
 name: IER_magFFT:L2_0.01:1_1e-4
 model_type: ImageEventRefinementModel
 scale: 1
-num_gpu: 2
+num_gpu: 1
 manual_seed: 10
 
 datasets:
@@ -32,7 +32,7 @@ datasets:
     # data loader settings
     use_shuffle: true
     num_worker_per_gpu: 2
-    batch_size_per_gpu: 8 # 4 for 2080, 8 for titan
+    batch_size_per_gpu: 16 # 4 for 2080, 8 for titan
 
 
   val:

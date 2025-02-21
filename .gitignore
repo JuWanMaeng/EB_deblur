@@ -46,5 +46,4 @@ basicsr/utils/options.py
 event_data_analysis.ipynb
 event_vis_mag.ipynb
 
-add_event.ipynb
 adding_event.ipynb
