@@ -37,7 +37,7 @@ network_g:
 
 # path
 path:
-  pretrain_network_g: pretrain_model/ER_NAFNet/FFTL2_01:1.pth
+  pretrain_network_g: pretrain_model/ER_NAFNet/FFTL2(0.01:1).pth
   strict_load_g: true
   resume_state: ~
 
