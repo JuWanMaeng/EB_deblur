@@ -1,4 +1,4 @@
-name: IER_magFFT:L2_0.05:1_1e-3
+name: IER_magFFT:L2_0.01:1_1e-3
 model_type: ImageEventRefinementModel
 scale: 1
 num_gpu: 2
@@ -103,7 +103,7 @@ train:
   # losses
   fft_loss_opt:
     type: FFTLoss
-    loss_weight: 0.05
+    loss_weight: 0.01
     reduction: mean
 
 
