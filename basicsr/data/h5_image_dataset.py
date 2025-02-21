@@ -97,11 +97,7 @@ class H5ImageDataset(data.Dataset):
         """
         if self.h5_file is None:
             self.h5_file = h5py.File(self.data_path, 'r')
-<<<<<<< HEAD
         return self.h5_file['gen_event_fft']['image{:09d}'.format(index)][:]
-=======
-        return self.h5_file['gen_event_cons']['image{:09d}'.format(index)][:]
->>>>>>> b8a8e8617d5b321cefbc1189113d8e7638f7aecf
 
 
     def __init__(self, opt, data_path, return_voxel=True, return_frame=True, return_gt_frame=True,
@@ -168,14 +164,6 @@ class H5ImageDataset(data.Dataset):
         with h5py.File(self.data_path, 'r') as file:
             self.dataset_len = len(file['images'].keys())
 
-<<<<<<< HEAD
-=======
-
-        # self.get_peak_point()
-
-
->>>>>>> b8a8e8617d5b321cefbc1189113d8e7638f7aecf
-    def __getitem__(self, index, seed=None):
     def __getitem__(self, index, seed=None):
 
         if index < 0 or index >= self.__len__():
@@ -319,9 +307,5 @@ class H5ImageDataset(data.Dataset):
             except:
                 collated_events[k] = default_collate(collated_events[k])
         return collated_events
-<<<<<<< HEAD
     
 
-=======
-    
->>>>>>> b8a8e8617d5b321cefbc1189113d8e7638f7aecf

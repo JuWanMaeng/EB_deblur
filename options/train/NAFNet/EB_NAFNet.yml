@@ -1,9 +1,5 @@
 # general settings
-<<<<<<< HEAD
 name: EB_NAFNet_FFT_L2_1_1
-=======
-name: EB_NAFNet_1e-3_cons
->>>>>>> b8a8e8617d5b321cefbc1189113d8e7638f7aecf
 model_type: ImageEventRestorationModel
 scale: 1
 num_gpu:  2
@@ -31,18 +27,13 @@ datasets:
       type: h5
 
     crop_size: 256
-    use_flip: false
+    use_flip: true
     use_rot: true
 
     # data loader settings
     use_shuffle: true
-<<<<<<< HEAD
-    num_worker_per_gpu: 4
+    num_worker_per_gpu: 2
     batch_size_per_gpu: 16 # 4 for 2080, 8 for titan
-=======
-    num_worker_per_gpu: 1
-    batch_size_per_gpu: 8 # 4 for 2080, 8 for titan
->>>>>>> b8a8e8617d5b321cefbc1189113d8e7638f7aecf
 
     # noise_std: 0.5
     # noise_std: 0.5
@@ -109,7 +100,7 @@ train:
 
   # losses
   pixel_opt:
-    type: PSNRLossㅊㅁ
+    type: PSNRLoss
     loss_weight: 1
     reduction: mean
 
