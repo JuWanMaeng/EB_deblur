@@ -35,8 +35,7 @@ datasets:
     num_worker_per_gpu: 2
     batch_size_per_gpu: 16 # 4 for 2080, 8 for titan
 
-    # noise_std: 0.5
-    # noise_std: 0.5
+  
 
 
   val:
@@ -83,12 +82,6 @@ train:
     weight_decay: !!float 1e-3
     betas: [0.9, 0.9]
 
-    # type: SGD
-    # lr: !!float 1e-3
-    # momentum: !!float 0.9
-    # weight_decay: !!float 1e-3
-    # dampening: !!float 0.0
-    # nesterov: false
 
   scheduler:
     type: TrueCosineAnnealingLR
