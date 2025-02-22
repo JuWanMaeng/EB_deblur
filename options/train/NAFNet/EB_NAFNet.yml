@@ -1,5 +1,5 @@
 # general settings
-name: EB_NAFNet_FFT_L2_0.01:1_1e-4
+name: EB_NAFNet_FFT_L2
 model_type: ImageEventRestorationModel
 scale: 1
 num_gpu:  4
