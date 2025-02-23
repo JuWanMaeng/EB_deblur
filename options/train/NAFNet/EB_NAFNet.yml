@@ -1,5 +1,5 @@
 # general settings
-name: EB_NAFNet_FFT_L2
+name: EB_NAFNet_FFT_L2_11
 model_type: ImageEventRestorationModel
 scale: 1
 num_gpu:  4
@@ -33,7 +33,7 @@ datasets:
     # data loader settings
     use_shuffle: true
     num_worker_per_gpu: 2
-    batch_size_per_gpu: 8 # 4 for 2080, 8 for titan
+    batch_size_per_gpu: 16 # 4 for 2080, 8 for titan
 
   
 

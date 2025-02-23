@@ -170,3 +170,66 @@ class PSNRLoss(nn.Module):
 
         return self.loss_weight * self.scale * torch.log(((pred - target) ** 2).mean(dim=(1, 2, 3)) + 1e-8).mean()
 
+
+
+class WaveletDomainLoss(nn.Module):
+    """
+    Computes L1 loss in the wavelet domain using a differentiable Haar wavelet transform.
+    For inputs of shape (B, C, H, W) (e.g., C=6) with data in [-1,1],
+    it applies a 2D Haar DWT (level 1) via group convolution and computes the L1 loss
+    between the wavelet coefficients of pred and target.
+    """
+    def __init__(self, loss_weight=1.0, wavelet='haar', reduction='mean'):
+        """
+        Args:
+            loss_weight (float): Loss에 곱할 가중치.
+            wavelet (str): 사용할 웨이블릿 종류 (현재는 'haar'만 지원).
+            reduction (str): 'none' | 'mean' | 'sum'. Default: 'mean'
+        """
+        super(WaveletDomainLoss, self).__init__()
+        if wavelet != 'haar':
+            raise ValueError("Only 'haar' wavelet is supported in this implementation.")
+        if reduction not in ['none', 'mean', 'sum']:
+            raise ValueError(f'Unsupported reduction mode: {reduction}. Supported: {["none", "mean", "sum"]}')
+        self.loss_weight = loss_weight
+        self.wavelet = wavelet
+        self.reduction = reduction
+
+        # Haar wavelet filters for 2D DWT (level 1)
+        # These filters are defined for a 2x2 patch.
+        # Standard normalization: each coefficient is scaled by 0.5.
+        # LL (Approximation): captures low-frequency content.
+        # LH, HL, HH (Details): capture horizontal, vertical, and diagonal details.
+        haar_filters = torch.tensor([
+            [[[0.5, 0.5], [0.5, 0.5]]],   # LL
+            [[[0.5, 0.5], [-0.5, -0.5]]],  # LH
+            [[[0.5, -0.5], [0.5, -0.5]]],  # HL
+            [[[0.5, -0.5], [-0.5, 0.5]]]   # HH
+        ], dtype=torch.float32)  # shape: (4, 1, 2, 2)
+        # Register as a buffer so that it's moved to the correct device.
+        self.register_buffer('haar_filters', haar_filters)
+    
+    def forward(self, pred, target):
+        """
+        Args:
+            pred (Tensor): shape (B, C, H, W). 예측 이미지 또는 event.
+            target (Tensor): shape (B, C, H, W). GT 이미지 또는 event.
+        Returns:
+            A scalar tensor representing the L1 loss between the Haar wavelet coefficients.
+        """
+        B, C, H, W = pred.shape
+
+        # Expand Haar filters for each channel using group convolution.
+        # Original haar_filters: (4, 1, 2, 2). We replicate them for each channel.
+        # Final filters shape: (4 * C, 1, 2, 2)
+        filters = self.haar_filters.repeat(C, 1, 1, 1)  # shape: (4*C, 1, 2, 2)
+
+        # Apply 2D convolution with stride=2 and groups=C to simulate level-1 DWT.
+        # This applies the 4 filters independently to each channel.
+        pred_coeffs = F.conv2d(pred, filters, stride=2, groups=C)  # shape: (B, 4*C, H//2, W//2)
+        target_coeffs = F.conv2d(target, filters, stride=2, groups=C)
+
+        # Compute L1 loss between the wavelet coefficients.
+        loss = F.l1_loss(pred_coeffs, target_coeffs, reduction=self.reduction)
+        return self.loss_weight * loss
+
