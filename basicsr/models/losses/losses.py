@@ -288,16 +288,21 @@ class HistogramLoss(nn.Module):
 class WaveletDomainLoss(nn.Module):
     """
     Computes L1 loss in the wavelet domain using a differentiable Haar wavelet transform.
-    For inputs of shape (B, C, H, W) (e.g., C=6) with data in [-1,1],
-    it applies a 2D Haar DWT (level 1) via group convolution and computes the L1 loss
-    between the wavelet coefficients of pred and target.
+    For inputs of shape (B, C, H, W), it applies a 2D Haar DWT (level 1) via group convolution
+    and computes the weighted L1 loss between the wavelet coefficients of pred and target.
+    Each subband (LL, LH, HL, HH) can have a different weight.
     """
-    def __init__(self, loss_weight=1.0, wavelet='haar', reduction='mean'):
+    def __init__(self, 
+                 loss_weight=1.0, 
+                 wavelet='haar', 
+                 reduction='mean',
+                 subband_weights=(1.0, 1.0, 1.0, 1.0)):
         """
         Args:
-            loss_weight (float): Loss에 곱할 가중치.
-            wavelet (str): 사용할 웨이블릿 종류 (현재는 'haar'만 지원).
-            reduction (str): 'none' | 'mean' | 'sum'. Default: 'mean'
+            loss_weight (float): Global loss weight.
+            wavelet (str): Wavelet type ('haar' only in this example).
+            reduction (str): 'none' | 'mean' | 'sum'. Default: 'mean'.
+            subband_weights (tuple of floats): (wLL, wLH, wHL, wHH) subband weights.
         """
         super(WaveletDomainLoss, self).__init__()
         if wavelet != 'haar':
@@ -307,41 +312,57 @@ class WaveletDomainLoss(nn.Module):
         self.loss_weight = loss_weight
         self.wavelet = wavelet
         self.reduction = reduction
+        # 서브밴드 가중치 저장
+        if len(subband_weights) != 4:
+            raise ValueError("subband_weights must be a tuple of length 4 (LL, LH, HL, HH).")
+        self.subband_weights = subband_weights
 
-        # Haar wavelet filters for 2D DWT (level 1)
-        # These filters are defined for a 2x2 patch.
-        # Standard normalization: each coefficient is scaled by 0.5.
-        # LL (Approximation): captures low-frequency content.
-        # LH, HL, HH (Details): capture horizontal, vertical, and diagonal details.
+        # Define Haar wavelet filters for 2D DWT (level 1)
         haar_filters = torch.tensor([
             [[[0.5, 0.5], [0.5, 0.5]]],   # LL
-            [[[0.5, 0.5], [-0.5, -0.5]]],  # LH
-            [[[0.5, -0.5], [0.5, -0.5]]],  # HL
-            [[[0.5, -0.5], [-0.5, 0.5]]]   # HH
+            [[[0.5, 0.5], [-0.5, -0.5]]], # LH
+            [[[0.5, -0.5], [0.5, -0.5]]], # HL
+            [[[0.5, -0.5], [-0.5, 0.5]]]  # HH
         ], dtype=torch.float32)  # shape: (4, 1, 2, 2)
-        # Register as a buffer so that it's moved to the correct device.
+        # Register filters as a buffer so that they move with the model to GPU.
         self.register_buffer('haar_filters', haar_filters)
     
     def forward(self, pred, target):
         """
         Args:
-            pred (Tensor): shape (B, C, H, W). 예측 이미지 또는 event.
-            target (Tensor): shape (B, C, H, W). GT 이미지 또는 event.
+            pred (Tensor): shape (B, C, H, W). Predicted event/image.
+            target (Tensor): shape (B, C, H, W). GT event/image.
         Returns:
-            A scalar tensor representing the L1 loss between the Haar wavelet coefficients.
+            Weighted L1 loss over subbands (LL, LH, HL, HH).
         """
         B, C, H, W = pred.shape
 
-        # Expand Haar filters for each channel using group convolution.
-        # Original haar_filters: (4, 1, 2, 2). We replicate them for each channel.
-        # Final filters shape: (4 * C, 1, 2, 2)
-        filters = self.haar_filters.repeat(C, 1, 1, 1)  # shape: (4*C, 1, 2, 2)
+        # Expand Haar filters for each channel.
+        # Original shape: (4, 1, 2, 2) -> repeated for C channels -> (4*C, 1, 2, 2)
+        filters = self.haar_filters.repeat(C, 1, 1, 1)
 
         # Apply 2D convolution with stride=2 and groups=C to simulate level-1 DWT.
-        # This applies the 4 filters independently to each channel.
-        pred_coeffs = F.conv2d(pred, filters, stride=2, groups=C)  # shape: (B, 4*C, H//2, W//2)
+        # Output shape: (B, 4*C, H//2, W//2)
+        pred_coeffs = F.conv2d(pred, filters, stride=2, groups=C)
         target_coeffs = F.conv2d(target, filters, stride=2, groups=C)
 
-        # Compute L1 loss between the wavelet coefficients.
-        loss = F.l1_loss(pred_coeffs, target_coeffs, reduction=self.reduction)
-        return self.loss_weight * loss
+        # Now, pred_coeffs and target_coeffs are chunked by channel in blocks of 4.
+        # subband i in [0..3], channel c in [0..C-1].
+        # Index = c*4 + i
+        # We'll compute L1 loss for each subband separately and multiply by subband_weights.
+        total_loss = 0.0
+        # We might do a loop over i=0..3 for each subband
+        for i in range(4):
+            # slice the i-th subband from all channels: shape (B, C, H//2, W//2)
+            # subband index: i, i+4, i+8, ... => stride=4
+            # but easier to chunk in groups of 4 along dim=1
+            sub_pred = pred_coeffs[:, i::4, :, :]  # shape (B, ?, H//2, W//2)
+            sub_tgt = target_coeffs[:, i::4, :, :]
+            # L1 loss for this subband
+            sub_loss = F.l1_loss(sub_pred, sub_tgt, reduction=self.reduction)
+            # multiply by subband weight
+            w = self.subband_weights[i]
+            total_loss += w * sub_loss
+
+        # subband_losses를 모두 합산한 뒤, 전체에 loss_weight 곱함
+        return self.loss_weight * total_loss
