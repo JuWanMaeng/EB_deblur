@@ -8,13 +8,13 @@ manual_seed: 10
 datasets:
   train:
     name: gopro-h5-train
-    type: H5ImageDataset
+    type: H5DebugImageDataset
 
     # dataroot: ./datasets/GoPro_scer/train
     dataroot: /workspace/data/GOPRO/train
 
     # keep true if use events
-    norm_voxel: truec
+    norm_voxel: true
     return_voxel: true
 
     return_gen_event: true
@@ -42,14 +42,14 @@ datasets:
 
   val:
     name: gopro-h5-test
-    type: H5ImageDataset
+    type: H5DebugImageDataset
 
     # dataroot: ./datasets/test
     dataroot: /workspace/data/GOPRO/test
 
     norm_voxel: true  
-    return_voxel: true
-    return_mask: true
+    return_voxel: false
+    return_mask: false
     use_mask: false
     return_gen_event: true
 
