@@ -1,5 +1,5 @@
 # general settings
-name: EB_NAFNet_Diff_0.1
+name: EB_NAFNet_Diff_0.3
 model_type: ImageEventRestorationModel
 scale: 1
 num_gpu:  4
@@ -35,7 +35,7 @@ datasets:
     num_worker_per_gpu: 2
     batch_size_per_gpu: 8 # 4 for 2080, 8 for titan
 
-    diff_weight: 0.1
+    diff_weight: 0.3
 
   
 
