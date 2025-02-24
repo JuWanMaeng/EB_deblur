@@ -285,7 +285,10 @@ class HistogramLoss(nn.Module):
 
         return self.loss_weight * loss
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> b20bad8f39f2635f92738df3e6fdab6a587bb223
 class WaveletDomainLoss(nn.Module):
     """
     Computes L1 loss in the wavelet domain using a differentiable Haar wavelet transform.
