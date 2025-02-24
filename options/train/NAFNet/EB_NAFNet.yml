@@ -1,5 +1,5 @@
 # general settings
-name: EB_NAFNet_FFT_L2_11
+name: EB_NAFNet_Waev
 model_type: ImageEventRestorationModel
 scale: 1
 num_gpu:  4
