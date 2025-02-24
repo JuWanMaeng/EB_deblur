@@ -66,12 +66,12 @@ class ImageEventRefinementModel(BaseModel):
         else:
             self.cri_perceptual = None
 
-        if train_opt.get('KL_opt'):
-            kl_loss_type = train_opt['KL_opt'].pop('type')
-            cri_kl_cls = getattr(loss_module, kl_loss_type)
-            self.cri_kl = cri_kl_cls(**train_opt['KL_opt']).to(self.device)
+        if train_opt.get('wae_opt'):
+            wae_loss_type = train_opt['wae_opt'].pop('type')
+            cri_wae_cls = getattr(loss_module, wae_loss_type)
+            self.cri_wae = cri_wae_cls(**train_opt['wae_opt']).to(self.device)
         else:
-            self.cri_kl = None
+            self.cri_wae = None
 
         if train_opt.get('fft_loss_opt'):
             fft_loss_type = train_opt['fft_loss_opt'].pop('type')
@@ -176,13 +176,11 @@ class ImageEventRefinementModel(BaseModel):
 
 
         # KL loss
-        if self.cri_kl:
+        if self.cri_wae:
             l_kl = 0
-            l_kl += self.cri_kl(self.output,self.voxel)
-            l_kl += self.cri_kl(self.output,self.voxel)
-
+            l_kl += self.cri_wae(self.output,self.voxel)
             l_total += l_kl
-            loss_dict['l_kl'] = l_kl
+            loss_dict['l_wae'] = l_kl
 
 
 
@@ -203,8 +201,8 @@ class ImageEventRefinementModel(BaseModel):
             if local_rank == '0':
                 if self.cri_pix:
                     wandb.log({'train_loss': loss_dict['l_pix'].item() / self.cri_pix.loss_weight, 'iter':current_iter})
-                if self.cri_kl:
-                    wandb.log({'kl_loss': loss_dict['l_kl'].item() / self.cri_kl.loss_weight, 'iter':current_iter})
+                if self.cri_wae:
+                    wandb.log({'wae_loss': loss_dict['l_wae'].item() / self.cri_wae.loss_weight, 'iter':current_iter})
                 if self.cri_fft:
                     wandb.log({'fft_loss': loss_dict['l_fft'].item() / self.cri_fft.loss_weight, 'iter':current_iter})
 
