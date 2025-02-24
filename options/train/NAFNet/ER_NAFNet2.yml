@@ -111,6 +111,7 @@ train:
     type: WaveletDomainLoss
     loss_weight: 1
     reduction: mean
+    subband_weights: (0.1, 1, 1, 1)
 
 
 
