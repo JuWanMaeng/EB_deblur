@@ -80,6 +80,13 @@ class ImageEventRefinementModel(BaseModel):
         else:
             self.cri_fft = None
 
+        if train_opt.get('ssim_opt'):
+            ssim_loss_type = train_opt['ssim_opt'].pop('type')
+            cri_ssim_cls = getattr(loss_module, ssim_loss_type)
+            self.cri_ssim = cri_ssim_cls(**train_opt['ssim_opt']).to(self.device)
+        else:
+            self.cri_ssim = None
+
 
 
         # set up optimizers and schedulers
@@ -182,6 +189,13 @@ class ImageEventRefinementModel(BaseModel):
             l_total += l_kl
             loss_dict['l_wae'] = l_kl
 
+        # ssim loss
+        if self.cri_ssim:
+            l_ssim = 0
+            l_ssim += self.cri_ssim(self.output, self.voxel)
+            l_total += l_ssim
+            loss_dict['l_ssim'] = l_ssim
+
 
 
         l_total = l_total + 0 * sum(p.sum() for p in self.net_g.parameters())
@@ -205,6 +219,8 @@ class ImageEventRefinementModel(BaseModel):
                     wandb.log({'wae_loss': loss_dict['l_wae'].item() / self.cri_wae.loss_weight, 'iter':current_iter})
                 if self.cri_fft:
                     wandb.log({'fft_loss': loss_dict['l_fft'].item() / self.cri_fft.loss_weight, 'iter':current_iter})
+                if self.cri_ssim:
+                    wandb.log({'ssim_loss': loss_dict['l_ssim'].item() / self.cri_ssim.loss_weight, 'iter':current_iter})
 
                 wandb.log({'total_loss': l_total.item() , 'iter':current_iter})
 

@@ -151,30 +151,18 @@ class EventRefinementModel(BaseModel):
 
         l_total = 0
         loss_dict = OrderedDict()
+
         # pixel loss
         if self.cri_pix:
             l_pix = 0.
 
-            if self.pixel_type == 'PSNRATLoss':
-                l_pix += self.cri_pix(*preds, self.gt)
-
-            elif self.pixel_type == 'PSNRGateLoss':
-                for pred in preds:
-                    l_pix += self.cri_pix(pred, self.gt, self.mask)
-
-            elif self.pixel_type == 'PSNRLoss':
-                for pred in preds:
-                    l_pix += self.cri_pix(pred, self.gt)
-            
-            else:
-                for pred in preds:
-                    l_pix += self.cri_pix(pred, self.voxel)    
+            for pred in preds:
+                l_pix += self.cri_pix(pred, self.voxel)    
 
             l_total += l_pix
+
             loss_dict['l_pix'] = l_pix
         
-
-
 
 
         l_total = l_total + 0 * sum(p.sum() for p in self.net_g.parameters())
@@ -213,7 +201,7 @@ class EventRefinementModel(BaseModel):
                     in_tensor = F.pad(self.gen_event[i:j], (0, w_n, 0, h_n), mode='reflect')
                     self.gen_event = in_tensor
 
-                    pred = self.net_g(inp = self.gen_event)
+                    pred = self.net_g(self.gen_event)
                     # pred = self.net_g(x = self.lq[i:j, :, :, :], event = self.voxel[i:j, :, :, :])  # mini batch all in 
             
                 if isinstance(pred, list):

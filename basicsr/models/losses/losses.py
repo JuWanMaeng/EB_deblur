@@ -2,6 +2,7 @@ import torch
 from torch import nn as nn
 from torch.nn import functional as F
 import numpy as np
+import math
 
 from basicsr.models.losses.loss_util import weighted_loss
 
@@ -230,60 +231,80 @@ class CustomMaskL1Loss(nn.Module):
         return self.loss_weight * loss
 
 
-class HistogramLoss(nn.Module):
-    def __init__(self, loss_weight=1.0, num_bins=50, val_range=(-1, 1), 
-                 distance_type='l2'):
+
+class SSIMLoss(nn.Module):
+    def __init__(self, loss_weight=1.0, reduction='mean', toY=False, window_size=11, channel=6):
         """
         Args:
             loss_weight (float): Loss에 곱할 가중치.
-            num_bins (int): 히스토그램 bin 개수.
-            val_range (tuple): (min_val, max_val) 값 범위.
-            distance_type (str): 'l1', 'l2', 'chi2', 'js' 등.
+            reduction (str): 현재는 'mean'만 지원합니다.
+            toY (bool): True이면 RGB 이미지를 Y 채널로 변환하여 SSIM 계산.
+            window_size (int): Gaussian 윈도우 크기 (보통 11).
+            channel (int): 입력 이미지의 채널 수.
         """
-        super().__init__()
+        super(SSIMLoss, self).__init__()
+        assert reduction == 'mean', "Currently only 'mean' reduction is supported."
         self.loss_weight = loss_weight
-        self.num_bins = num_bins
-        self.val_min, self.val_max = val_range
-        self.distance_type = distance_type
+        self.toY = toY
+        self.window_size = window_size
+        self.channel = channel
+        self.first = True
+        # Y 채널 변환을 위한 계수 (Rec.601)
+        self.coef = torch.tensor([65.481, 128.553, 24.966]).reshape(1, 3, 1, 1)
+        # Gaussian 윈도우 생성
+        self.window = self.create_window(window_size, channel)
 
-    def forward(self, pred, gt):
+    def gaussian_window(self, window_size, sigma):
+        gauss = torch.Tensor([math.exp(-(x - window_size//2)**2 / float(2*sigma**2)) for x in range(window_size)])
+        return gauss / gauss.sum()
+
+    def create_window(self, window_size, channel):
+        _1D_window = self.gaussian_window(window_size, 1.5).unsqueeze(1)  # (window_size, 1)
+        _2D_window = _1D_window.mm(_1D_window.t()).float().unsqueeze(0).unsqueeze(0)  # (1,1,window_size,window_size)
+        window = _2D_window.expand(channel, 1, window_size, window_size).contiguous()
+        return window
+
+    def ssim(self, img1, img2, window, window_size, channel, size_average=True):
+        # img1, img2: (B, channel, H, W)
+        mu1 = F.conv2d(img1, window, padding=window_size//2, groups=channel)
+        mu2 = F.conv2d(img2, window, padding=window_size//2, groups=channel)
+        mu1_sq = mu1 * mu1
+        mu2_sq = mu2 * mu2
+        mu1_mu2 = mu1 * mu2
+
+        sigma1_sq = F.conv2d(img1 * img1, window, padding=window_size//2, groups=channel) - mu1_sq
+        sigma2_sq = F.conv2d(img2 * img2, window, padding=window_size//2, groups=channel) - mu2_sq
+        sigma12 = F.conv2d(img1 * img2, window, padding=window_size//2, groups=channel) - mu1_mu2
+
+        # 상수 C1, C2 (입력이 [0,1] 범위일 때)
+        C1 = (0.01)**2
+        C2 = (0.03)**2
+
+        ssim_map = ((2 * mu1_mu2 + C1) * (2 * sigma12 + C2)) / ((mu1_sq + mu2_sq + C1) * (sigma1_sq + sigma2_sq + C2))
+        if size_average:
+            return ssim_map.mean()
+        else:
+            return ssim_map.mean(1).mean(1).mean(1)
+
+    def forward(self, pred, target):
         """
         Args:
-            pred, gt: [B, C, H, W] 등 다차원 텐서.
+            pred (Tensor): shape (B, 3, H, W) (or (B,1,H,W) if toY is True) RGB image.
+            target (Tensor): shape (B, 3, H, W) (or (B,1,H,W)) RGB image.
         Returns:
-            두 히스토그램 간의 거리(loss)에 loss_weight를 곱한 값.
+            A scalar tensor representing the SSIM loss (1 - SSIM).
         """
-        # 1) Flatten
-        pred_flat = pred.view(-1)
-        gt_flat = gt.view(-1)
+        # 입력 이미지의 최소값이 음수라면, [-1,1] 범위로 가정하고 [0,1]로 변환합니다.
+        if pred.min() < 0:
+            pred = (pred + 1) / 2
+        if target.min() < 0:
+            target = (target + 1) / 2
 
-        # 2) histc로 히스토그램 계산
-        hist_pred = torch.histc(pred_flat, bins=self.num_bins,
-                                min=self.val_min, max=self.val_max)
-        hist_gt = torch.histc(gt_flat, bins=self.num_bins,
-                              min=self.val_min, max=self.val_max)
+        # SSIM 계산 (입력이 [0,1] 범위라고 가정)
+        ssim_val = self.ssim(pred, target, self.window.to(pred.device), self.window_size, self.channel, size_average=True)
+        loss = self.loss_weight * (1 - ssim_val)
+        return loss
 
-        # 3) 정규화 (합이 1이 되도록)
-        hist_pred = hist_pred / (hist_pred.sum() + 1e-8)
-        hist_gt   = hist_gt   / (hist_gt.sum()   + 1e-8)
-
-        # 4) 두 히스토그램 간 거리 계산
-        if self.distance_type == 'l1':
-            loss = torch.sum(torch.abs(hist_pred - hist_gt))
-        elif self.distance_type == 'l2':
-            loss = torch.sum((hist_pred - hist_gt)**2)
-        elif self.distance_type == 'chi2':
-            diff = (hist_pred - hist_gt)**2 / (hist_pred + hist_gt + 1e-8)
-            loss = torch.sum(diff)
-        elif self.distance_type == 'js':
-            m = 0.5 * (hist_pred + hist_gt)
-            js = 0.5 * (F.kl_div(m.log(), hist_pred, reduction='sum') + 
-                        F.kl_div(m.log(), hist_gt, reduction='sum'))
-            loss = js
-        else:
-            raise ValueError(f"Unsupported distance type: {self.distance_type}")
-
-        return self.loss_weight * loss
 
 class WaveletDomainLoss(nn.Module):
     """
@@ -366,3 +387,6 @@ class WaveletDomainLoss(nn.Module):
 
         # subband_losses를 모두 합산한 뒤, 전체에 loss_weight 곱함
         return self.loss_weight * total_loss
+    
+
+

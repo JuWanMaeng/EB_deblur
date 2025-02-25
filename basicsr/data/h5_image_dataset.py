@@ -212,14 +212,15 @@ class H5ImageDataset(data.Dataset):
         """
         if self.return_format == "torch":
             if transpose_to_CHW:
-                frame = torch.from_numpy(frame.transpose(2, 0, 1)).float() / 255  # H,W,C -> C,H,W
-
+                frame = torch.from_numpy(frame.transpose(2, 0, 1)).float() / 127.5 - 1  # HWC -> CHW, [-1,1] 정규화
             else:
-                frame = torch.from_numpy(frame).float() / 255 # 0-1
+                frame = torch.from_numpy(frame).float() / 127.5 - 1  # [-1,1] 정규화
+
             if self.transform:
                 random.seed(seed)
                 frame = self.transform(frame)
         return frame
+
 
     def transform_voxel(self, voxel, seed, transpose_to_CHW):
         """

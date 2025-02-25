@@ -1,4 +1,4 @@
-name: IER_Waev
+name: IER_SSIM
 model_type: ImageEventRefinementModel
 scale: 1
 num_gpu: 2
@@ -96,6 +96,11 @@ train:
   #   loss_weight: 1
   #   reduction: mean
 
+  ssim_opt:
+    type: SSIMLoss
+    loss_weight: 1
+    reduction: mean
+
   # pixel_opt:
   #   type: L1Loss
   #   loss_weight: 0.1
@@ -107,11 +112,11 @@ train:
   #   loss_weight: 0.01
   #   reduction: mean
 
-  wae_opt:
-    type: WaveletDomainLoss
-    loss_weight: 1
-    reduction: mean
-    subband_weights: (0.1, 1, 1, 1)
+  # wae_opt:
+  #   type: WaveletDomainLoss
+  #   loss_weight: 1
+  #   reduction: mean
+  #   subband_weights: (0.1, 1, 1, 1)
 
 
 
