@@ -270,11 +270,8 @@ class fftformer(nn.Module):
     def forward(self, y):
         if y.shape[1] != 3:
             inp = y
-            inp_img = y[:,0:3,:,:]
-        else:
-            inp = y
-            inp_img = y
-
+            gen_event = inp[:,:6,:,:]
+  
 
         inp_enc_level1 = self.patch_embed(inp)
         out_enc_level1 = self.encoder_level1(inp_enc_level1)
@@ -300,6 +297,6 @@ class fftformer(nn.Module):
 
         out_dec_level1 = self.refinement(out_dec_level1)
 
-        out_dec_level1 = self.output(out_dec_level1) + inp_img
+        out_dec_level1 = self.output(out_dec_level1) + gen_event
 
         return out_dec_level1

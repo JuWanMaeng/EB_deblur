@@ -1,0 +1,75 @@
+name: Gopro_test
+model_type: ImageEventRefinementModel
+scale: 1
+num_gpu: 1
+manual_seed: 10
+
+datasets:
+  val:
+    name: gopro-h5-test
+    type: H5ImageDataset
+
+    # dataroot: ./datasets/test
+    dataroot: /workspace/data/GOPRO/test
+
+    norm_voxel: true  
+    return_voxel: true
+    return_mask: true
+    use_mask: false
+    return_gen_event: true
+
+    io_backend:
+      type: h5
+    
+    crop_size: ~
+    use_flip: false
+    use_rot: false
+
+dataset_name: GoPro
+
+# network structures
+network_g:
+  type: fftformer
+  inp_channels: 9
+  out_channels: 6
+  dim: 48
+  num_blocks: [6,6,12]
+  num_refinement_blocks: 4
+  ffn_expansion_factor: 3
+  bias: False
+
+# path
+path:
+  pretrain_network_g: /workspace/FFTformer/pretrain_model/ER_FFTformer/40k.pth
+  strict_load_g: true
+  resume_state: ~
+
+
+# validation settings
+val:
+  val_freq: !!float 20000
+  save_img: false
+
+  metrics:
+    rmse: # metric name, can be arbitrary
+      type: calculate_event_rmse
+      crop_border: 0
+
+    # ssim:
+    #   type: calculate_ssim
+    #   crop_border: 0
+    #   test_y_channel: false
+
+# logging settings
+logger:
+  print_freq: 1000
+  save_checkpoint_freq: !!float 5000
+  use_tb_logger: true
+  wandb:
+    project: ~
+    resume_id: ~
+
+# dist training settings
+dist_params:
+  backend: nccl
+  port: 29500
