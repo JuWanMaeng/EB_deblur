@@ -82,10 +82,10 @@ class NAFBlock(nn.Module):
 
 class NAFNet(nn.Module):
 
-    def __init__(self, img_channel=6, width=16, middle_blk_num=1, enc_blk_nums=[], dec_blk_nums=[]):
+    def __init__(self, img_channel=9, width=16, middle_blk_num=1, enc_blk_nums=[], dec_blk_nums=[]):
         super().__init__()
 
-        self.intro = nn.Conv2d(in_channels=6, out_channels=width, kernel_size=3, padding=1, stride=1, groups=1,
+        self.intro = nn.Conv2d(in_channels=9, out_channels=width, kernel_size=3, padding=1, stride=1, groups=1,
                               bias=True)
         self.ending = nn.Conv2d(in_channels=width, out_channels=img_channel, kernel_size=3, padding=1, stride=1, groups=1,
                               bias=True)

@@ -37,7 +37,7 @@ network_g:
 
 # path
 path:
-  pretrain_network_g: /workspace/FFTformer/pretrain_model/ER_NAFNet/Waevelet.pth
+  pretrain_network_g: /workspace/FFTformer/pretrain_model/ER_NAFNet/SSIM.pth
   strict_load_g: true
   resume_state: ~
 

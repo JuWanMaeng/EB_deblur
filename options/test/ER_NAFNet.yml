@@ -37,7 +37,7 @@ network_g:
 
 # path
 path:
-  pretrain_network_g: /workspace/FFTformer/pretrained_model/Event_Refinment_E_L1_1e-4.pth
+  pretrain_network_g: /workspace/FFTformer/pretrain_model/ER_NAFNet/SSIM.pth
   strict_load_g: true
   resume_state: ~
   root: /workspace/FFTformer  # set this option ONLY in TEST!!!

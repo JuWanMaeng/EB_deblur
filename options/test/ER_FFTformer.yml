@@ -1,4 +1,4 @@
-name: Gopro_train
+name: Gopro_train_fft
 model_type: ImageEventRefinementModel
 scale: 1
 num_gpu: 1
