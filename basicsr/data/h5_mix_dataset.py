@@ -30,7 +30,7 @@ def concatenate_h5_datasets(dataset, opt):
     return ConcatDataset(datasets)
 
 
-class H5DebugImageDataset(data.Dataset):
+class H5MixImageDataset(data.Dataset):
 
     def get_frame(self, index):
         """
@@ -67,11 +67,11 @@ class H5DebugImageDataset(data.Dataset):
         """
         if self.h5_file is None:
             self.h5_file = h5py.File(self.data_path, 'r')
-        return self.h5_file['gen_event_refined']['image{:09d}'.format(index)][:]
+        return self.h5_file['gen_event']['image{:09d}'.format(index)][:]
 
     def __init__(self, opt, data_path, return_voxel=True, return_frame=True, return_gt_frame=True,
                  return_mask=False, norm_voxel=True):
-        super(H5DebugImageDataset, self).__init__()
+        super(H5MixImageDataset, self).__init__()
         self.opt = opt
         self.data_path = data_path
         self.seq_name = os.path.basename(self.data_path)
@@ -130,52 +130,54 @@ class H5DebugImageDataset(data.Dataset):
         with h5py.File(self.data_path, 'r') as file:
             self.dataset_len = len(file['images'].keys())
 
+
     def __getitem__(self, index, seed=None):
         if index < 0 or index >= self.__len__():
             raise IndexError
         seed = random.randint(0, 2 ** 32) if seed is None else seed
         item = {}
+        
+        # Get frame, GT frame, voxel, and generated event from h5 file
         frame = self.get_frame(index)
         if self.return_gt_frame:
             frame_gt = self.get_gt_frame(index)
             frame_gt = self.transform_frame(frame_gt, seed, transpose_to_CHW=False)
-
+        
+        # GT event
         voxel = self.get_voxel(index)
-        frame = self.transform_frame(frame, seed, transpose_to_CHW=False)
-        gen_event = self.get_gen_event(index)  # shape: (6, H, W)
+        gt_voxel = self.transform_voxel(voxel, seed, transpose_to_CHW=False)  # GT event (voxel)
 
-        if self.return_gen_event:
-            gen_event = torch.from_numpy(gen_event)
-            # transform_gen_event()에서 정규화 및 augmentation 적용
-            item['gen_event'] = self.transform_gen_event(gen_event, seed)
-            
+        # Blur image
+        frame = self.transform_frame(frame, seed, transpose_to_CHW=False)
+
+        # Gen event
+        gen_event = self.get_gen_event(index)  # shape: (6, H, W)
+        gen_event = torch.from_numpy(gen_event)  # Convert to tensor
+        gen_event = self.transform_gen_event(gen_event, seed)  # Assume normalization, etc.
+
+        
+        if self.opt['mix']:
+            # 50% 확률로 GT event에 Gaussian 노이즈를 추가하거나, 생성된 event를 그대로 사용
+            if np.random.rand() < 0.5:
+                # Gaussian noise 추가 (옵션에서 noise_std가 설정되어 있으면 사용, 아니면 기본 0.1)
+                noise_std = self.opt.get('noise_std')
+                noise = torch.randn_like(gt_voxel) * noise_std
+                mixed_event = gt_voxel + noise
+                mixed_event = torch.clamp(mixed_event,-1,1)
+                item['gen_event'] = mixed_event
+            else:
+                item['gen_event'] = gen_event
+
+        else:
+            item['gen_event'] = gen_event
+
         if self.return_frame:
             item['frame'] = frame
-
-        if self.return_voxel:
-            # voxel을 변환 (GT event)
-            gt_voxel = self.transform_voxel(voxel, seed, transpose_to_CHW=False)
-            # item['voxel'] = gt_voxel
-
-            # 실험: 생성된 event와 GT event 간의 차이에 diff_weight를 곱해 GT event에 추가
-            if self.diff_weight != 0.0 and self.return_gen_event:
-                # 이미 transform_gen_event를 통해 gen_event가 torch.Tensor 형태로 변환되었으므로 사용
-                # 두 텐서는 모두 [-1,1] 범위로 정규화되어 있다고 가정합니다.
-                diff = item['gen_event'] - gt_voxel
-                mod_voxel = gt_voxel + self.diff_weight * diff
-
-                # gen_evenet 변경!
-                item['gen_event'] = mod_voxel
-        else:
-            # test 할때 GT event
-            gt_voxel = self.transform_voxel(voxel, seed, transpose_to_CHW=False)
-            item['gen_event'] = gt_voxel
-
         if self.return_gt_frame:
             item['frame_gt'] = frame_gt
-
         item['seq'] = self.seq_name
         item['path'] = os.path.join(self.seq_name, 'image{:06d}'.format(index))
+        
         return item
 
 

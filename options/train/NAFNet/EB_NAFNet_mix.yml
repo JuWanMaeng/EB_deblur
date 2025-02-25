@@ -1,5 +1,5 @@
 # general settings
-name: EB_NAFNet_Diff_0.1
+name: EB_NAFNet_Mix_0.05
 model_type: ImageEventRestorationModel
 scale: 1
 num_gpu:  2
@@ -8,7 +8,7 @@ manual_seed: 10
 datasets:
   train:
     name: gopro-h5-train
-    type: H5DebugImageDataset
+    type: H5MixImageDataset
 
     # dataroot: ./datasets/GoPro_scer/train
     dataroot: /workspace/data/GOPRO/train
@@ -35,14 +35,16 @@ datasets:
     num_worker_per_gpu: 1
     batch_size_per_gpu: 8 # 4 for 2080, 8 for titan
 
-    diff_weight: 0.1
+    noise_std: 0.05
+
+    mix: true
 
   
 
 
   val:
     name: gopro-h5-test
-    type: H5DebugImageDataset
+    type: H5MixImageDataset
 
     # dataroot: ./datasets/test
     dataroot: /workspace/data/GOPRO/test
@@ -59,6 +61,7 @@ datasets:
     crop_size: ~
     use_flip: false
     use_rot: false
+    mix: false
 
 dataset_name: GoPro
 
