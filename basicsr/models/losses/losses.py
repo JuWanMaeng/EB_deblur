@@ -83,18 +83,19 @@ class EdgeLoss(nn.Module):
         return loss*self.weight
 
 class FFTLoss(nn.Module):
-    """L1 loss in frequency domain using log1p of FFT magnitude.
+    """L1 loss in frequency domain with FFT.
 
     Args:
         loss_weight (float): Loss weight for FFT loss. Default: 1.0.
         reduction (str): Specifies the reduction to apply to the output.
             Supported choices are 'none' | 'mean' | 'sum'. Default: 'mean'.
     """
+
     def __init__(self, loss_weight=1.0, reduction='mean'):
         super(FFTLoss, self).__init__()
         if reduction not in ['none', 'mean', 'sum']:
-            raise ValueError(f'Unsupported reduction mode: {reduction}. '
-                             f'Supported ones are: {["none", "mean", "sum"]}')
+            raise ValueError(f'Unsupported reduction mode: {reduction}. ' f'Supported ones are: {_reduction_modes}')
+
         self.loss_weight = loss_weight
         self.reduction = reduction
 
@@ -103,26 +104,57 @@ class FFTLoss(nn.Module):
         Args:
             pred (Tensor): of shape (..., C, H, W). Predicted tensor.
             target (Tensor): of shape (..., C, H, W). Ground truth tensor.
-            weight (Tensor, optional): of shape (..., C, H, W). Element-wise weights. Default: None.
-        Returns:
-            L1 loss between the log1p(FFT magnitude) of pred and target.
+            weight (Tensor, optional): of shape (..., C, H, W). Element-wise
+                weights. Default: None.
         """
-        # 1) FFT 변환
+
         pred_fft = torch.fft.fft2(pred, dim=(-2, -1))
+        pred_fft = torch.stack([pred_fft.real, pred_fft.imag], dim=-1)
         target_fft = torch.fft.fft2(target, dim=(-2, -1))
+        target_fft = torch.stack([target_fft.real, target_fft.imag], dim=-1)
+        return self.loss_weight * l1_loss(pred_fft, target_fft, weight, reduction=self.reduction)
+
+# class FFTLoss(nn.Module):
+#     """L1 loss in frequency domain using log1p of FFT magnitude.
+
+#     Args:
+#         loss_weight (float): Loss weight for FFT loss. Default: 1.0.
+#         reduction (str): Specifies the reduction to apply to the output.
+#             Supported choices are 'none' | 'mean' | 'sum'. Default: 'mean'.
+#     """
+#     def __init__(self, loss_weight=1.0, reduction='mean'):
+#         super(FFTLoss, self).__init__()
+#         if reduction not in ['none', 'mean', 'sum']:
+#             raise ValueError(f'Unsupported reduction mode: {reduction}. '
+#                              f'Supported ones are: {["none", "mean", "sum"]}')
+#         self.loss_weight = loss_weight
+#         self.reduction = reduction
+
+#     def forward(self, pred, target, weight=None, **kwargs):
+#         """
+#         Args:
+#             pred (Tensor): of shape (..., C, H, W). Predicted tensor.
+#             target (Tensor): of shape (..., C, H, W). Ground truth tensor.
+#             weight (Tensor, optional): of shape (..., C, H, W). Element-wise weights. Default: None.
+#         Returns:
+#             L1 loss between the log1p(FFT magnitude) of pred and target.
+#         """
+#         # 1) FFT 변환
+#         pred_fft = torch.fft.fft2(pred, dim=(-2, -1))
+#         target_fft = torch.fft.fft2(target, dim=(-2, -1))
         
-        # 2) Magnitude 계산
-        pred_mag = torch.abs(pred_fft)
-        target_mag = torch.abs(target_fft)
+#         # 2) Magnitude 계산
+#         pred_mag = torch.abs(pred_fft)
+#         target_mag = torch.abs(target_fft)
 
-        # 3) log1p로 동적 범위 압축
-        #    log1p(x) = log(1 + x)
-        pred_log = torch.log1p(pred_mag)
-        target_log = torch.log1p(target_mag)
+#         # 3) log1p로 동적 범위 압축
+#         #    log1p(x) = log(1 + x)
+#         pred_log = torch.log1p(pred_mag)
+#         target_log = torch.log1p(target_mag)
 
-        # 4) L1 Loss 계산
-        loss = l1_loss(pred_log, target_log, reduction=self.reduction)
-        return self.loss_weight * loss
+#         # 4) L1 Loss 계산
+#         loss = l1_loss(pred_log, target_log, reduction=self.reduction)
+#         return self.loss_weight * loss
 
 class MSELoss(nn.Module):
     """MSE (L2) loss.

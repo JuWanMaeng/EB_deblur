@@ -228,7 +228,7 @@ class ImageEventRefinementModel(BaseModel):
                     in_tensor = F.pad(self.input[i:j], (0, w_n, 0, h_n), mode='reflect')
                     self.input = in_tensor
 
-                    pred = self.net_g(inp = self.input)
+                    pred = self.net_g(self.input)
                     # pred = self.net_g(x = self.lq[i:j, :, :, :], event = self.voxel[i:j, :, :, :])  # mini batch all in 
             
                 if isinstance(pred, list):
