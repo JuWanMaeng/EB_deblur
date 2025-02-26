@@ -1,5 +1,5 @@
 # general settings
-name: EB_NAFNet_SSIM
+name: EB_NAFNet_fftformer
 model_type: ImageEventRestorationModel
 scale: 1
 num_gpu:  4
