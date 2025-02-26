@@ -1,12 +1,8 @@
 # general settings
-<<<<<<< HEAD
-name: EB_NAFNet_fftformer
-=======
-name: EB_NAFNet_3channel
->>>>>>> 282dc198f623be6f754ff8b01a21b0754712347b
+name: EB_NAFNet_refined_std+0.1
 model_type: ImageEventRestorationModel
 scale: 1
-num_gpu:  2
+num_gpu:  1
 manual_seed: 10
 
 datasets:
@@ -36,19 +32,10 @@ datasets:
 
     # data loader settings
     use_shuffle: true
-<<<<<<< HEAD
     num_worker_per_gpu: 2
     batch_size_per_gpu: 16 # 4 for 2080, 8 for titan
 
     # diff_weight: 0.3
-
-  
-=======
-    num_worker_per_gpu: 1
-    batch_size_per_gpu: 8 # 4 for 2080, 8 for titan
-
-    # diff_weight: 0.3
->>>>>>> 282dc198f623be6f754ff8b01a21b0754712347b
 
 
   val:

@@ -97,11 +97,7 @@ class H5ImageDataset(data.Dataset):
         """
         if self.h5_file is None:
             self.h5_file = h5py.File(self.data_path, 'r')
-<<<<<<< HEAD
-        return self.h5_file['gen_event_fftformer']['image{:09d}'.format(index)][:]
-=======
         return self.h5_file['gen_event_refined']['image{:09d}'.format(index)][:]
->>>>>>> 282dc198f623be6f754ff8b01a21b0754712347b
 
 
     def __init__(self, opt, data_path, return_voxel=True, return_frame=True, return_gt_frame=True,
@@ -187,18 +183,12 @@ class H5ImageDataset(data.Dataset):
             frame_gt = self.get_gt_frame(index)
             frame_gt = self.transform_frame(frame_gt, seed, transpose_to_CHW=False)
 
-        # voxel = self.get_voxel(index)
-        # item['voxel'] = self.transform_voxel(voxel, seed, transpose_to_CHW=False)
+
 
     
         frame = self.transform_frame(frame, seed, transpose_to_CHW=False)  # to tensor
         gen_event = self.get_gen_event(index)  
         # gen_event = gen_event.transpose(1,2,0)
-
-        # gen_event = gen_event[0:3,:,:]
-
-
-        
 
         # normalize RGB
         if self.mean is not None or self.std is not None:
@@ -278,6 +268,13 @@ class H5ImageDataset(data.Dataset):
         # max_val = torch.max(torch.abs(voxel))
         # voxel = voxel / max_val
 
+        noise_std = 0.1
+        noise = torch.randn_like(voxel) * noise_std
+        voxel = voxel+noise
+        voxel = torch.clamp(voxel,-1,1)
+        del noise
+
+        
         if self.vox_transform:
             random.seed(seed)
             voxel = self.vox_transform(voxel)

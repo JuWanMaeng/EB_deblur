@@ -294,10 +294,6 @@ def main():
 
 if __name__ == '__main__':
     import os
-<<<<<<< HEAD
-    os.environ['CUDA_VISIBLE_DEVICES']='0,1,2,3'
-=======
-    os.environ['CUDA_VISIBLE_DEVICES']='0,1'
->>>>>>> 282dc198f623be6f754ff8b01a21b0754712347b
+    os.environ['CUDA_VISIBLE_DEVICES']='3'
     os.environ['GRPC_POLL_STRATEGY']='epoll1'
     main()
