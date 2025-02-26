@@ -1,5 +1,5 @@
 # general settings
-name: EB_NAFNet_Mix_0.05
+name: EB_NAFNet_Mix_0.1
 model_type: ImageEventRestorationModel
 scale: 1
 num_gpu:  2
@@ -35,7 +35,7 @@ datasets:
     num_worker_per_gpu: 1
     batch_size_per_gpu: 8 # 4 for 2080, 8 for titan
 
-    noise_std: 0.05
+    noise_std: 0.1
 
     mix: true
 

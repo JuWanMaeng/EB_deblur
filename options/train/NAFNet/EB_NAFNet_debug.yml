@@ -1,5 +1,5 @@
 # general settings
-name: EB_NAFNet_Diff_refined_0.1
+name: EB_NAFNet_GT_Diff_0.1
 model_type: ImageEventRestorationModel
 scale: 1
 num_gpu:  2
@@ -59,6 +59,8 @@ datasets:
     crop_size: ~
     use_flip: false
     use_rot: false
+
+    diff_weight: 0.1
 
 dataset_name: GoPro
 

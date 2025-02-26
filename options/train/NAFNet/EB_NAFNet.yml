@@ -1,8 +1,8 @@
 # general settings
-name: EB_NAFNet_Diff_0.3
+name: EB_NAFNet_3channel
 model_type: ImageEventRestorationModel
 scale: 1
-num_gpu:  4
+num_gpu:  2
 manual_seed: 10
 
 datasets:
@@ -14,7 +14,7 @@ datasets:
     dataroot: /workspace/data/GOPRO/train
 
     # keep true if use events
-    norm_voxel: truec
+    norm_voxel: true
     return_voxel: true
 
     return_gen_event: true
@@ -32,12 +32,10 @@ datasets:
 
     # data loader settings
     use_shuffle: true
-    num_worker_per_gpu: 2
+    num_worker_per_gpu: 1
     batch_size_per_gpu: 8 # 4 for 2080, 8 for titan
 
-    diff_weight: 0.3
-
-  
+    # diff_weight: 0.3
 
 
   val:
