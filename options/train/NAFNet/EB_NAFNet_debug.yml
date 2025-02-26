@@ -1,5 +1,5 @@
 # general settings
-name: EB_NAFNet_Diff_0.3
+name: EB_NAFNet_GT_Diff_0.1
 model_type: ImageEventRestorationModel
 scale: 1
 num_gpu:  2
@@ -32,10 +32,10 @@ datasets:
 
     # data loader settings
     use_shuffle: true
-    num_worker_per_gpu: 2
+    num_worker_per_gpu: 1
     batch_size_per_gpu: 8 # 4 for 2080, 8 for titan
 
-    diff_weight: 0.3
+    diff_weight: 0.1
 
   
 
@@ -59,6 +59,8 @@ datasets:
     crop_size: ~
     use_flip: false
     use_rot: false
+
+    diff_weight: 0.1
 
 dataset_name: GoPro
 

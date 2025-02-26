@@ -1,9 +1,5 @@
 # general settings
-<<<<<<< HEAD
-name: EB_NAFNet_fftformer
-=======
-name: EB_NAFNet_3channel
->>>>>>> 282dc198f623be6f754ff8b01a21b0754712347b
+name: EB_NAFNet_Mix_0.1
 model_type: ImageEventRestorationModel
 scale: 1
 num_gpu:  2
@@ -12,7 +8,7 @@ manual_seed: 10
 datasets:
   train:
     name: gopro-h5-train
-    type: H5ImageDataset
+    type: H5MixImageDataset
 
     # dataroot: ./datasets/GoPro_scer/train
     dataroot: /workspace/data/GOPRO/train
@@ -36,31 +32,26 @@ datasets:
 
     # data loader settings
     use_shuffle: true
-<<<<<<< HEAD
-    num_worker_per_gpu: 2
-    batch_size_per_gpu: 16 # 4 for 2080, 8 for titan
-
-    # diff_weight: 0.3
-
-  
-=======
     num_worker_per_gpu: 1
     batch_size_per_gpu: 8 # 4 for 2080, 8 for titan
 
-    # diff_weight: 0.3
->>>>>>> 282dc198f623be6f754ff8b01a21b0754712347b
+    noise_std: 0.1
+
+    mix: true
+
+  
 
 
   val:
     name: gopro-h5-test
-    type: H5ImageDataset
+    type: H5MixImageDataset
 
     # dataroot: ./datasets/test
     dataroot: /workspace/data/GOPRO/test
 
     norm_voxel: true  
-    return_voxel: true
-    return_mask: true
+    return_voxel: false
+    return_mask: false
     use_mask: false
     return_gen_event: true
 
@@ -70,6 +61,7 @@ datasets:
     crop_size: ~
     use_flip: false
     use_rot: false
+    mix: false
 
 dataset_name: GoPro
 

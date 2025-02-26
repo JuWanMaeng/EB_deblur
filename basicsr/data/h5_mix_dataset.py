@@ -1,35 +1,13 @@
-# ------------------------------------------------------------------------
-# Modified from (https://github.com/TimoStoff/events_contrast_maximization)
-# ------------------------------------------------------------------------
 from torch.utils import data as data
 import pandas as pd
-from torchvision.transforms.functional import normalize
-from tqdm import tqdm
 import os
-from basicsr.data.data_util import (paired_paths_from_folder,
-                                    paired_paths_from_lmdb,
-                                    paired_paths_from_meta_info_file)
-from basicsr.data.transforms import augment, paired_random_crop
-from basicsr.utils import FileClient, imfrombytes, img2tensor, padding
+
 from torch.utils.data.dataloader import default_collate
 import h5py
 # local modules
 from basicsr.data.h5_augment import *
 from torch.utils.data import ConcatDataset
 
-
-"""
-    Data augmentation functions.
-    modified from https://github.com/TimoStoff/events_contrast_maximization
-
-    @InProceedings{Stoffregen19cvpr,
-    author = {Stoffregen, Timo and Kleeman, Lindsay},
-    title = {Event Cameras, Contrast Maximization and Reward Functions: An Analysis},
-    booktitle = {The IEEE Conference on Computer Vision and Pattern Recognition (CVPR)},
-    month = {June},
-    year = {2019}
-    } 
-"""
 
 
 def concatenate_h5_datasets(dataset, opt):
@@ -52,7 +30,7 @@ def concatenate_h5_datasets(dataset, opt):
     return ConcatDataset(datasets)
 
 
-class H5ImageDataset(data.Dataset):
+class H5MixImageDataset(data.Dataset):
 
     def get_frame(self, index):
         """
@@ -81,14 +59,6 @@ class H5ImageDataset(data.Dataset):
             self.h5_file = h5py.File(self.data_path, 'r')
         return self.h5_file['voxels']['voxel{:09d}'.format(index)][:]
 
-    def get_mask(self, index):
-        """
-        Get event mask at index
-        @param index The index of the event mask to get
-        """
-        if self.h5_file is None:
-            self.h5_file = h5py.File(self.data_path, 'r')
-        return self.h5_file['masks']['mask{:09d}'.format(index)][:]
     
     def get_gen_event(self, index):
         """
@@ -97,17 +67,11 @@ class H5ImageDataset(data.Dataset):
         """
         if self.h5_file is None:
             self.h5_file = h5py.File(self.data_path, 'r')
-<<<<<<< HEAD
-        return self.h5_file['gen_event_fftformer']['image{:09d}'.format(index)][:]
-=======
-        return self.h5_file['gen_event_refined']['image{:09d}'.format(index)][:]
->>>>>>> 282dc198f623be6f754ff8b01a21b0754712347b
-
+        return self.h5_file['gen_event']['image{:09d}'.format(index)][:]
 
     def __init__(self, opt, data_path, return_voxel=True, return_frame=True, return_gt_frame=True,
-            return_mask=False, norm_voxel=True):
-
-        super(H5ImageDataset, self).__init__()
+                 return_mask=False, norm_voxel=True):
+        super(H5MixImageDataset, self).__init__()
         self.opt = opt
         self.data_path = data_path
         self.seq_name = os.path.basename(self.data_path)
@@ -121,23 +85,19 @@ class H5ImageDataset(data.Dataset):
         self.return_voxel = opt.get('return_voxel', return_voxel)
         self.return_mask = opt.get('return_mask', return_mask)
         
-        self.norm_voxel = norm_voxel # -MAX~MAX -> -1 ~ 1 
+        self.norm_voxel = norm_voxel  # -MAX~MAX -> -1 ~ 1 
         self.h5_file = None
-        self.transforms={}
+        self.transforms = {}
         self.mean = opt['mean'] if 'mean' in opt else None
         self.std = opt['std'] if 'std' in opt else None
-        self.threshold = 0.005
 
 
         if self.opt['norm_voxel'] is not None:
             self.norm_voxel = self.opt['norm_voxel']   # -MAX~MAX -> -1 ~ 1 
-        
         if self.opt['return_voxel'] is not None:
             self.return_voxel = self.opt['return_voxel']
-
         if self.opt['crop_size'] is not None:
             self.transforms["RandomCrop"] = {"size": self.opt['crop_size']}
-        
         if self.opt['use_flip']:
             self.transforms["RandomFlip"] = {}
 
@@ -154,7 +114,6 @@ class H5ImageDataset(data.Dataset):
                 break
 
         transforms_list = [eval(t)(**kwargs) for t, kwargs in self.transforms.items()]
-
         if len(transforms_list) == 0:
             self.transform = None
         elif len(transforms_list) == 1:
@@ -165,131 +124,107 @@ class H5ImageDataset(data.Dataset):
         if not self.normalize_voxels:
             self.vox_transform = self.transform
 
+        # diff_weight: 가중치 값을 통해 GT event에 추가할 차이의 비율을 결정 (실험을 위한 옵션)
+        self.diff_weight = opt.get('diff_weight', 0.0)
+
         with h5py.File(self.data_path, 'r') as file:
             self.dataset_len = len(file['images'].keys())
 
+
     def __getitem__(self, index, seed=None):
-
         if index < 0 or index >= self.__len__():
             raise IndexError
         seed = random.randint(0, 2 ** 32) if seed is None else seed
-        item={}
+        item = {}
+        
+        # Get frame, GT frame, voxel, and generated event from h5 file
         frame = self.get_frame(index)
         if self.return_gt_frame:
             frame_gt = self.get_gt_frame(index)
             frame_gt = self.transform_frame(frame_gt, seed, transpose_to_CHW=False)
-        if index < 0 or index >= self.__len__():
-            raise IndexError
-        seed = random.randint(0, 2 ** 32) if seed is None else seed
-        item={}
-        frame = self.get_frame(index)
-        if self.return_gt_frame:
-            frame_gt = self.get_gt_frame(index)
-            frame_gt = self.transform_frame(frame_gt, seed, transpose_to_CHW=False)
+        
+        # GT event
+        voxel = self.get_voxel(index)
+        gt_voxel = self.transform_voxel(voxel, seed, transpose_to_CHW=False)  # GT event (voxel)
 
-        # voxel = self.get_voxel(index)
-        # item['voxel'] = self.transform_voxel(voxel, seed, transpose_to_CHW=False)
+        # Blur image
+        frame = self.transform_frame(frame, seed, transpose_to_CHW=False)
 
-    
-        frame = self.transform_frame(frame, seed, transpose_to_CHW=False)  # to tensor
-        gen_event = self.get_gen_event(index)  
-        # gen_event = gen_event.transpose(1,2,0)
-
-        # gen_event = gen_event[0:3,:,:]
-
+        # Gen event
+        gen_event = self.get_gen_event(index)  # shape: (6, H, W)
+        gen_event = torch.from_numpy(gen_event)  # Convert to tensor
+        gen_event = self.transform_gen_event(gen_event, seed)  # Assume normalization, etc.
 
         
+        if self.opt['mix']:
+            # 50% 확률로 GT event에 Gaussian 노이즈를 추가하거나, 생성된 event를 그대로 사용
+            if np.random.rand() < 0.5:
+                # Gaussian noise 추가 (옵션에서 noise_std가 설정되어 있으면 사용, 아니면 기본 0.1)
+                noise_std = self.opt.get('noise_std')
+                noise = torch.randn_like(gt_voxel) * noise_std
+                mixed_event = gt_voxel + noise
+                mixed_event = torch.clamp(mixed_event,-1,1)
+                item['gen_event'] = mixed_event
+            else:
+                item['gen_event'] = gen_event
 
-        # normalize RGB
-        if self.mean is not None or self.std is not None:
-            normalize(frame, self.mean, self.std, inplace=True)
-            if self.return_gt_frame:
-                normalize(frame_gt, self.mean, self.std, inplace=True)
+        else:
+            item['gen_event'] = gen_event
 
-        if self.return_gen_event:
-            gen_event = torch.from_numpy(gen_event)
-            item['gen_event'] = self.transform_gen_event(gen_event,seed)
         if self.return_frame:
             item['frame'] = frame
         if self.return_gt_frame:
             item['frame_gt'] = frame_gt
-        
-            
         item['seq'] = self.seq_name
         item['path'] = os.path.join(self.seq_name, 'image{:06d}'.format(index))
-
-
+        
         return item
-
 
 
     def __len__(self):
         return self.dataset_len
 
+
+
     def transform_frame(self, frame, seed, transpose_to_CHW=False):
-        """
-        Augment frame and turn into tensor
-        @param frame Input frame
-        @param seed  Seed for random number generation
-        @returns Augmented frame
-        """
         if self.return_format == "torch":
             if transpose_to_CHW:
-                frame = torch.from_numpy(frame.transpose(2, 0, 1)).float() / 255  # H,W,C -> C,H,W
-
+                frame = torch.from_numpy(frame.transpose(2, 0, 1)).float() / 255
             else:
-                frame = torch.from_numpy(frame).float() / 255 # 0-1
+                frame = torch.from_numpy(frame).float() / 255
             if self.transform:
                 random.seed(seed)
                 frame = self.transform(frame)
         return frame
+    
+
 
     def transform_voxel(self, voxel, seed, transpose_to_CHW):
-        """
-        Augment voxel and turn into tensor
-        @param voxel Input voxel
-        @param seed  Seed for random number generation
-        @returns Augmented voxel
-        """
         if self.return_format == "torch":
             if transpose_to_CHW:
-                voxel = torch.from_numpy(voxel.transpose(2, 0, 1)).float()# H,W,C -> C,H,W
-
+                voxel = torch.from_numpy(voxel.transpose(2, 0, 1)).float()
             else:
                 if self.norm_voxel:
-                    voxel = torch.from_numpy(voxel).float() / abs(max(voxel.min(), voxel.max(), key=abs))  # -1 ~ 1
+                    voxel = torch.from_numpy(voxel).float() / abs(max(voxel.min(), voxel.max(), key=abs))
                 else:
                     voxel = torch.from_numpy(voxel).float()
-
             if self.vox_transform:
                 random.seed(seed)
                 voxel = self.vox_transform(voxel)
         return voxel
     
     def transform_gen_event(self, voxel, seed):
-        """
-        Augment voxel and turn into tensor
-        @param voxel Input voxel
-        @param seed  Seed for random number generation
-        @returns Augmented voxel
-        """
-        
-        # normalize voxel to [-1,1]
         # max_val = torch.max(torch.abs(voxel))
         # voxel = voxel / max_val
 
         if self.vox_transform:
             random.seed(seed)
             voxel = self.vox_transform(voxel)
-
         return voxel
-
+    
 
     @staticmethod
     def collate_fn(data, event_keys=['events'], idx_keys=['events_batch_indices']):
-        """
-        Custom collate function for pyTorch batching to allow batching events
-        """
         collated_events = {}
         events_arr = []
         end_idx = 0
@@ -313,5 +248,3 @@ class H5ImageDataset(data.Dataset):
             except:
                 collated_events[k] = default_collate(collated_events[k])
         return collated_events
-    
-

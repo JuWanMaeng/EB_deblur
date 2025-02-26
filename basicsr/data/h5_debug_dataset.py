@@ -67,7 +67,7 @@ class H5DebugImageDataset(data.Dataset):
         """
         if self.h5_file is None:
             self.h5_file = h5py.File(self.data_path, 'r')
-        return self.h5_file['gen_event']['image{:09d}'.format(index)][:]
+        return self.h5_file['gen_event_refined']['image{:09d}'.format(index)][:]
 
     def __init__(self, opt, data_path, return_voxel=True, return_frame=True, return_gt_frame=True,
                  return_mask=False, norm_voxel=True):
@@ -141,6 +141,8 @@ class H5DebugImageDataset(data.Dataset):
             frame_gt = self.transform_frame(frame_gt, seed, transpose_to_CHW=False)
 
         voxel = self.get_voxel(index)
+        gt_voxel = self.transform_voxel(voxel, seed, transpose_to_CHW=False)
+
         frame = self.transform_frame(frame, seed, transpose_to_CHW=False)
         gen_event = self.get_gen_event(index)  # shape: (6, H, W)
 
@@ -152,24 +154,17 @@ class H5DebugImageDataset(data.Dataset):
         if self.return_frame:
             item['frame'] = frame
 
-        if self.return_voxel:
-            # voxel을 변환 (GT event)
-            gt_voxel = self.transform_voxel(voxel, seed, transpose_to_CHW=False)
-            # item['voxel'] = gt_voxel
+    
+            
+        if self.diff_weight != 0.0 and self.return_gen_event:
+            # 이미 transform_gen_event를 통해 gen_event가 torch.Tensor 형태로 변환되었으므로 사용
+            # 두 텐서는 모두 [-1,1] 범위로 정규화되어 있다고 가정합니다.
+            diff = item['gen_event'] - gt_voxel
+            mod_voxel = gt_voxel + self.diff_weight * diff
 
-            # 실험: 생성된 event와 GT event 간의 차이에 diff_weight를 곱해 GT event에 추가
-            if self.diff_weight != 0.0 and self.return_gen_event:
-                # 이미 transform_gen_event를 통해 gen_event가 torch.Tensor 형태로 변환되었으므로 사용
-                # 두 텐서는 모두 [-1,1] 범위로 정규화되어 있다고 가정합니다.
-                diff = item['gen_event'] - gt_voxel
-                mod_voxel = gt_voxel + self.diff_weight * diff
+            # gen_evenet 변경!
+            item['gen_event'] = mod_voxel
 
-                # gen_evenet 변경!
-                item['gen_event'] = mod_voxel
-        else:
-            # test 할때 GT event
-            gt_voxel = self.transform_voxel(voxel, seed, transpose_to_CHW=False)
-            item['gen_event'] = gt_voxel
 
         if self.return_gt_frame:
             item['frame_gt'] = frame_gt
