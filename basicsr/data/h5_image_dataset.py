@@ -97,7 +97,7 @@ class H5ImageDataset(data.Dataset):
         """
         if self.h5_file is None:
             self.h5_file = h5py.File(self.data_path, 'r')
-        return self.h5_file['gen_event_refined']['image{:09d}'.format(index)][:]
+        return self.h5_file['gen_event']['image{:09d}'.format(index)][:]
 
 
     def __init__(self, opt, data_path, return_voxel=True, return_frame=True, return_gt_frame=True,
@@ -268,11 +268,11 @@ class H5ImageDataset(data.Dataset):
         # max_val = torch.max(torch.abs(voxel))
         # voxel = voxel / max_val
 
-        noise_std = 0.1
-        noise = torch.randn_like(voxel) * noise_std
-        voxel = voxel+noise
-        voxel = torch.clamp(voxel,-1,1)
-        del noise
+        # noise_std = 0.1
+        # noise = torch.randn_like(voxel) * noise_std
+        # voxel = voxel+noise
+        # voxel = torch.clamp(voxel,-1,1)
+        # del noise
 
         
         if self.vox_transform:
