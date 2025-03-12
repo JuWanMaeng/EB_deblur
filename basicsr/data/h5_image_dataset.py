@@ -199,7 +199,7 @@ class H5ImageDataset(data.Dataset):
 
         if self.return_gen_event:
             gen_event = torch.from_numpy(gen_event)
-            item['gen_event'] = self.transform_gen_event(gen_event,seed)
+            item['gen_event'] = self.transform_gen_event(gen_event, seed)
         if self.return_frame:
             item['frame'] = frame
         if self.return_gt_frame:
