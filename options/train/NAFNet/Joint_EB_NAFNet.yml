@@ -1,8 +1,8 @@
 # general settings
-name: EB_NAFNet_1e-3_L1_KL_0.1_1
+name: EB_NAFNet_Joint_PSNR_L2_1e-4
 model_type: JointImageEventRestorationModel
 scale: 1
-num_gpu:  4
+num_gpu:  2
 manual_seed: 10
 
 datasets:
@@ -67,7 +67,7 @@ network_g:
 
 # path
 path:
-  pretrain_network_g: ~
+  pretrain_network_g: /workspace/FFTformer/pretrain_model/EB_NAFNet/L2_refined.pth
   strict_load_g: true
   resume_state: ~
 
@@ -75,7 +75,7 @@ path:
 train:
   optim_g:
     type: AdamW
-    lr: !!float 1e-3
+    lr: !!float 1e-4
     weight_decay: !!float 1e-3
     betas: [0.9, 0.9]
 
@@ -92,14 +92,15 @@ train:
     type: PSNRLoss
     loss_weight: 1
     reduction: mean
-  # event_opt:
-  #   type: MSELoss
-  #   loss_weight: 1
-  #   reduction: mean
+
+  event_opt:
+    type: MSELoss
+    loss_weight: 0.5
+    reduction: mean
 
 # validation settings
 val:
-  val_freq: !!float 5000
+  val_freq: !!float 10000
   save_img: false
 
 
@@ -116,7 +117,7 @@ val:
 # logging settings
 logger:
   print_freq: 1000
-  save_checkpoint_freq: !!float 5000
+  save_checkpoint_freq: !!float 10000
   use_tb_logger: true
   wandb:
     project: ~

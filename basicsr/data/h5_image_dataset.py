@@ -183,12 +183,13 @@ class H5ImageDataset(data.Dataset):
             frame_gt = self.get_gt_frame(index)
             frame_gt = self.transform_frame(frame_gt, seed, transpose_to_CHW=False)
 
-
-
     
         frame = self.transform_frame(frame, seed, transpose_to_CHW=False)  # to tensor
         gen_event = self.get_gen_event(index)  
         # gen_event = gen_event.transpose(1,2,0)
+
+        voxel = self.get_voxel(index)
+        voxel = self.transform_voxel(voxel,seed,transpose_to_CHW=False)
 
         # normalize RGB
         if self.mean is not None or self.std is not None:
@@ -203,6 +204,7 @@ class H5ImageDataset(data.Dataset):
             item['frame'] = frame
         if self.return_gt_frame:
             item['frame_gt'] = frame_gt
+        item['voxel'] = voxel
         
             
         item['seq'] = self.seq_name
@@ -268,13 +270,6 @@ class H5ImageDataset(data.Dataset):
         # max_val = torch.max(torch.abs(voxel))
         # voxel = voxel / max_val
 
-        # noise_std = 0.1
-        # noise = torch.randn_like(voxel) * noise_std
-        # voxel = voxel+noise
-        # voxel = torch.clamp(voxel,-1,1)
-        # del noise
-
-        
         if self.vox_transform:
             random.seed(seed)
             voxel = self.vox_transform(voxel)

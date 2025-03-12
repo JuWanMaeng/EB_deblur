@@ -1,8 +1,8 @@
 # general settings
-name: EB_NAFNet_GT_Diff_0.7
+name: EB_NAFNet_GT_2,3
 model_type: ImageEventRestorationModel
 scale: 1
-num_gpu:  1
+num_gpu:  2
 manual_seed: 10
 
 datasets:
@@ -33,11 +33,8 @@ datasets:
     # data loader settings
     use_shuffle: true
     num_worker_per_gpu: 2
-    batch_size_per_gpu: 16 # 4 for 2080, 8 for titan
+    batch_size_per_gpu: 8 # 4 for 2080, 8 for titan
 
-    diff_weight: 0.7
-
-  
 
 
   val:
@@ -60,7 +57,6 @@ datasets:
     use_flip: false
     use_rot: false
 
-    diff_weight: 0.7
 
 dataset_name: GoPro
 
@@ -103,7 +99,7 @@ train:
 
 # validation settings
 val:
-  val_freq: !!float 5000
+  val_freq: !!float 10000
   save_img: false
 
 
@@ -120,7 +116,7 @@ val:
 # logging settings
 logger:
   print_freq: 1000
-  save_checkpoint_freq: !!float 5000
+  save_checkpoint_freq: !!float 10000
   use_tb_logger: true
   wandb:
     project: ~

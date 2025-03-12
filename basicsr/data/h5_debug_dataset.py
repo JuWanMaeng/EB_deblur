@@ -148,26 +148,18 @@ class H5DebugImageDataset(data.Dataset):
 
         if self.return_gen_event:
             gen_event = torch.from_numpy(gen_event)
-            # transform_gen_event()에서 정규화 및 augmentation 적용
-            item['gen_event'] = self.transform_gen_event(gen_event, seed)
+            gen_event = self.transform_gen_event(gen_event, seed)
             
         if self.return_frame:
             item['frame'] = frame
 
-    
-            
-        if self.diff_weight != 0.0 and self.return_gen_event:
-            # 이미 transform_gen_event를 통해 gen_event가 torch.Tensor 형태로 변환되었으므로 사용
-            # 두 텐서는 모두 [-1,1] 범위로 정규화되어 있다고 가정합니다.
-            diff = item['gen_event'] - gt_voxel
-            mod_voxel = gt_voxel + self.diff_weight * diff
-
-            # gen_evenet 변경!
-            item['gen_event'] = mod_voxel
-
-
         if self.return_gt_frame:
             item['frame_gt'] = frame_gt
+
+        gt_voxel_part1, gt_voxel_part2 = gt_voxel[2:3,:,:],gt_voxel[3:4,:,:]
+        # gen_event_part1, gen_event_part2 = gen_event[1:3,:,:], gen_event[3:5,:,:]
+        gen_event = torch.cat([gt_voxel_part1, gt_voxel_part2], dim=(0))
+        item['gen_event'] = gen_event
 
         item['seq'] = self.seq_name
         item['path'] = os.path.join(self.seq_name, 'image{:06d}'.format(index))

@@ -18,7 +18,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 from basicsr.models.archs.arch_util import LayerNorm2d
 from basicsr.models.archs.local_arch import Local_Base
-from basicsr.models.archs.NAFNet_for_joint_arch import NAFNetFJ
 
 class SimpleGate(nn.Module):
     def forward(self, x):
@@ -81,11 +80,10 @@ class NAFBlock(nn.Module):
         return y + x * self.gamma
 
 
-class JointNAFNet(nn.Module):
+class NAFNetFJ(nn.Module):
 
     def __init__(self, img_channel=3, width=16, middle_blk_num=1, enc_blk_nums=[], dec_blk_nums=[]):
         super().__init__()
-
 
         self.intro = nn.Conv2d(in_channels=9, out_channels=width, kernel_size=3, padding=1, stride=1, groups=1,
                               bias=True)
@@ -131,28 +129,15 @@ class JointNAFNet(nn.Module):
 
         self.padder_size = 2 ** len(self.encoders)
 
-        self.refine = NAFNetFJ(img_channel=6, width=32, middle_blk_num=1, enc_blk_nums=[1, 1, 1, 28], dec_blk_nums=[1, 1, 1, 1])
-        # train setting #
-        refine_checkpoint = torch.load('/workspace/FFTformer/pretrain_model/ER_NAFNet/Event_Refinement_L2.pth')
-        self.refine.load_state_dict(refine_checkpoint['params'])
-        self.refine.eval()
-
     def forward(self, y):
         B, C, H, W = y.shape
-        # 0~2 blur, 3~5 event
-
-        # event refinement
-        # [-0.n ~ 0.n]
-        event = y[:,3:,:,:]
-        inp_img = y[:,0:3,:,:]
-        refine_input = torch.cat([event, inp_img], dim=(1))
-
-
-        refined_event_output = self.refine(refine_input)
-
-
-        inp = torch.cat([inp_img, refined_event_output], dim=(1))
-
+        if y.shape[1] != 3:
+            inp = y
+            inp_img = y[:,0:6,:,:]  # event 
+            # inp_img = y[:,0:3,:,:]  # img
+        else:
+            inp = y
+            inp_img = y
 
         x = self.intro(inp)
 
@@ -173,7 +158,7 @@ class JointNAFNet(nn.Module):
         x = self.ending(x)
         x = x + inp_img
 
-        return x[:, :, :H, :W], refined_event_output
+        return x[:, :, :H, :W]
 
     def check_image_size(self, x):
         _, _, h, w = x.size()
