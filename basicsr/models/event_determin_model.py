@@ -186,7 +186,7 @@ class EventDeterminModel(BaseModel):
     def test(self):
         self.net_g.eval()
         with torch.no_grad():
-            n = self.gen_event.size(0)  # n: batch size
+            n = self.input.size(0)  # n: batch size
             outs = []
             m = self.opt['val'].get('max_minibatch', n)  # m is the minibatch, equals to batch size or mini batch size
             i = 0
@@ -196,13 +196,13 @@ class EventDeterminModel(BaseModel):
                 if j >= n:
                     j = n
 
-                    b, c, h, w = self.gen_event[i:j].shape
+                    b, c, h, w = self.input[i:j].shape
                     h_n = (32 - h % 32) % 32
                     w_n = (32 - w % 32) % 32
-                    in_tensor = F.pad(self.gen_event[i:j], (0, w_n, 0, h_n), mode='reflect')
-                    self.gen_event = in_tensor
+                    in_tensor = F.pad(self.input[i:j], (0, w_n, 0, h_n), mode='reflect')
+                    self.input = in_tensor
 
-                    pred = self.net_g(self.gen_event)
+                    pred = self.net_g(self.input)
                     # pred = self.net_g(x = self.lq[i:j, :, :, :], event = self.voxel[i:j, :, :, :])  # mini batch all in 
             
                 if isinstance(pred, list):
@@ -271,7 +271,7 @@ class EventDeterminModel(BaseModel):
 
 
             # tentative for out of GPU memory
-            del self.gen_event
+     
             del self.output
             torch.cuda.empty_cache()
 
@@ -328,7 +328,7 @@ class EventDeterminModel(BaseModel):
 
     def get_current_visuals(self):
         out_dict = OrderedDict()
-        out_dict['lq'] = self.gen_event.detach().cpu()
+        out_dict['lq'] = self.input.detach().cpu()
         out_dict['result'] = self.output.detach().cpu()
         if hasattr(self, 'voxel'):
             out_dict['gt'] = self.voxel.detach().cpu()
