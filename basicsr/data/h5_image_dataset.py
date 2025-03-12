@@ -216,6 +216,9 @@ class H5ImageDataset(data.Dataset):
 
             else:
                 frame = torch.from_numpy(frame).float() / 255 # 0-1
+            
+            frame = frame * 2 - 1  # Normalize to [-1,1]
+
             if self.transform:
                 random.seed(seed)
                 frame = self.transform(frame)
