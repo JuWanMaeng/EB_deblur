@@ -97,7 +97,7 @@ class H5ImageDataset(data.Dataset):
         """
         if self.h5_file is None:
             self.h5_file = h5py.File(self.data_path, 'r')
-        return self.h5_file['gen_event_refined']['image{:09d}'.format(index)][:]
+        return self.h5_file['gen_event_06']['image{:09d}'.format(index)][:]
 
 
     def __init__(self, opt, data_path, return_voxel=True, return_frame=True, return_gt_frame=True,
@@ -182,8 +182,12 @@ class H5ImageDataset(data.Dataset):
     
         frame = self.transform_frame(frame, seed, transpose_to_CHW=False)  # to tensor
         gen_event = self.get_gen_event(index)  
-        gen_event[np.abs(gen_event) < self.threshold] = 0
+        gen_event = np.concatenate((gen_event[:1, :, :], gen_event[2:, :, :]), axis=0)
+
+        # gen_event[np.abs(gen_event) < self.threshold] = 0
         # gen_event = gen_event.transpose(1,2,0)
+
+
 
         voxel = self.get_voxel(index)
         voxel = self.transform_voxel(voxel,seed,transpose_to_CHW=False)
