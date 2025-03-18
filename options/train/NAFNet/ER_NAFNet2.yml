@@ -1,4 +1,4 @@
-name: IER_Waev
+name: Orignal_voxel_to_SCER_PSNR_noNorm
 model_type: ImageEventRefinementModel
 scale: 1
 num_gpu: 2
@@ -10,7 +10,7 @@ datasets:
     type: H5ImageDataset
 
     # dataroot: ./datasets/GoPro_scer/train
-    dataroot: /workspace/data/GOPRO/train
+    dataroot: /workspace/data/GOPRO_original_voxel/train
 
     # keep true if use events
     norm_voxel: true
@@ -31,8 +31,8 @@ datasets:
 
     # data loader settings
     use_shuffle: true
-    num_worker_per_gpu: 1
-    batch_size_per_gpu: 8 # 4 for 2080, 8 for titan
+    num_worker_per_gpu: 2
+    batch_size_per_gpu: 16 # 4 for 2080, 8 for titan
 
 
   val:
@@ -40,7 +40,7 @@ datasets:
     type: H5ImageDataset
 
     # dataroot: ./datasets/test
-    dataroot: /workspace/data/GOPRO/test
+    dataroot: /workspace/data/GOPRO_original_voxel/test
 
     norm_voxel: true  
     return_voxel: true
@@ -60,7 +60,7 @@ dataset_name: GoPro
 # network structures
 network_g:
   type: NAFNet2
-  width: 32
+  width: 64
   enc_blk_nums: [1, 1, 1, 28]
   middle_blk_num: 1
   dec_blk_nums: [1, 1, 1, 1]
@@ -96,10 +96,10 @@ train:
   #   loss_weight: 1
   #   reduction: mean
 
-  # pixel_opt:
-  #   type: L1Loss
-  #   loss_weight: 0.1
-  #   reduction: mean
+  pixel_opt:
+    type: PSNRLoss
+    loss_weight: 1
+    reduction: mean
   
   # losses
   # fft_loss_opt:
@@ -107,11 +107,11 @@ train:
   #   loss_weight: 0.01
   #   reduction: mean
 
-  wae_opt:
-    type: WaveletDomainLoss
-    loss_weight: 1
-    reduction: mean
-    subband_weights: (0.1, 1, 1, 1)
+  # wae_opt:
+  #   type: WaveletDomainLoss
+  #   loss_weight: 1
+  #   reduction: mean
+  #   subband_weights: (0.1, 1, 1, 1)
 
 
 

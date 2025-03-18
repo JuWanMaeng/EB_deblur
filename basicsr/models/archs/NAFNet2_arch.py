@@ -132,7 +132,7 @@ class NAFNet2(nn.Module):
     def forward(self, inp):
         B, C, H, W = inp.shape
         # inp = self.check_image_size(inp)
-        gen_event = inp[:,:6,:,:]
+        gen_event = inp[:,3:,:,:]
 
         x = self.intro(inp)
 

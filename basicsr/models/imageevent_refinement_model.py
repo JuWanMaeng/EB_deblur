@@ -125,12 +125,13 @@ class ImageEventRefinementModel(BaseModel):
 
     def feed_data(self, data):
 
-        self.gen_event = data['gen_event'].to(self.device) # input
+        self.gen_event = data['gen_event'].to(self.device) # input  # original voxel
         self.lq = data['frame'].to(self.device)
 
         self.voxel=data['voxel'].to(self.device) # GT
 
-        self.input = torch.cat([self.gen_event, self.lq], dim=1)
+        # self.input = torch.cat([self.gen_event, self.lq], dim=1)
+        self.input = torch.cat([self.lq, self.gen_event], dim=1)
 
 
     def transpose(self, t, trans_idx):
