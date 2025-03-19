@@ -1,5 +1,5 @@
 # general settings
-name: EB_NAFNet_gen(0,6)
+name: EB_NAFNet_Original_to_SCER
 model_type: ImageEventRestorationModel
 scale: 1
 num_gpu:  2
@@ -11,7 +11,7 @@ datasets:
     type: H5ImageDataset
 
     # dataroot: ./datasets/GoPro_scer/train
-    dataroot: /workspace/data/GOPRO/train
+    dataroot: /workspace/data/GOPRO_original_voxel/train
 
     # keep true if use events
     norm_voxel: true
@@ -43,7 +43,7 @@ datasets:
     type: H5ImageDataset
 
     # dataroot: ./datasets/test
-    dataroot: /workspace/data/GOPRO/test
+    dataroot: /workspace/data/GOPRO_original_voxel/test
 
     norm_voxel: true  
     return_voxel: true
