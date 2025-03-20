@@ -85,13 +85,7 @@ class EFNet(nn.Module):
         self.cat12 = nn.Conv2d(prev_channels*2, prev_channels, 1, 1, 0)
         self.last = conv3x3(prev_channels, in_chn, bias=True)
 
-    def forward(self, y,mask=None):
-        x = y
-        if x.shape[1] != 3:
-            event = x[:,3:,:,:]
-            x = x[:,0:3,:,:]
-
-
+    def forward(self, x, event, mask=None):
         image = x
 
         ev = []

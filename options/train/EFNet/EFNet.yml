@@ -1,8 +1,8 @@
 # general settings
-name: EFNet_gen_debug
+name: EFNet_Original_to_SCER
 model_type: ImageEventRestorationModel
 scale: 1
-num_gpu:  1
+num_gpu:  2
 manual_seed: 10
 
 datasets:
@@ -10,7 +10,8 @@ datasets:
     name: gopro-h5-train
     type: H5ImageDataset
 
-    dataroot: /workspace/data/GOPRO/train
+    # dataroot: ./datasets/GoPro_scer/train
+    dataroot: /workspace/data/GOPRO_original_voxel/train
 
     # keep true if use events
     norm_voxel: true
@@ -18,7 +19,7 @@ datasets:
 
     return_gen_event: true
 
-    return_mask: true
+    return_mask: false
     use_mask: false
 
     filename_tmpl: '{}'
@@ -32,20 +33,21 @@ datasets:
     # data loader settings
     use_shuffle: true
     num_worker_per_gpu: 2
-    batch_size_per_gpu: 4 # 4 for 2080, 8 for titan
-    dataset_enlarge_ratio: 4  # accelarate, equals to the num_gpu
-    prefetch_mode: cpu
-    num_prefetch_queue: 2
+    batch_size_per_gpu: 16 # 4 for 2080, 8 for titan
+
+    # diff_weight: 0.3
+
 
   val:
     name: gopro-h5-test
     type: H5ImageDataset
 
-    dataroot: /workspace/data/GOPRO/test
+    # dataroot: ./datasets/test
+    dataroot: /workspace/data/GOPRO_original_voxel/test
 
     norm_voxel: true  
     return_voxel: true
-    return_mask: true 
+    return_mask: true
     use_mask: false
     return_gen_event: true
 
@@ -95,7 +97,7 @@ train:
 
 # validation settings
 val:
-  val_freq: !!float 5000
+  val_freq: !!float 10000
   save_img: false  
   grids: ~  
   crop_size: ~ 
@@ -115,7 +117,7 @@ val:
 # logging settings
 logger:
   print_freq: 1000
-  save_checkpoint_freq: 5000
+  save_checkpoint_freq: 10000
   use_tb_logger: true
   wandb:
     project: ~

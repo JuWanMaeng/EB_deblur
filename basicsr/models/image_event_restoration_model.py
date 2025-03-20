@@ -148,10 +148,12 @@ class ImageEventRestorationModel(BaseModel):
         self.lq = self.lq.float()
         if 'voxel' in data:
             self.voxel=data['voxel'].to(self.device) 
-        if 'mask' in data:
-            self.mask = data['mask'].to(self.device)
+
         if 'frame_gt' in data:
             self.gt = data['frame_gt'].to(self.device)
+        
+        if 'gen_event' in data:
+            self.gen_event = data['gen_event'].to(self.device)
 
     def transpose(self, t, trans_idx):
         # print('transpose jt .. ', t.size())
@@ -166,163 +168,14 @@ class ImageEventRestorationModel(BaseModel):
             t = torch.flip(t, [3])
         return t
 
-    def grids_voxel(self):
-        b, c, h, w = self.voxel.size()
-        self.original_size_voxel = self.voxel.size()
-        assert b == 1
-        crop_size = self.opt['val'].get('crop_size')
-        # step_j = self.opt['val'].get('step_j', crop_size)
-        # step_i = self.opt['val'].get('step_i', crop_size)
-        ##adaptive step_i, step_j
-        num_row = (h - 1) // crop_size + 1
-        num_col = (w - 1) // crop_size + 1
-
-        import math
-        step_j = crop_size if num_col == 1 else math.ceil((w - crop_size) / (num_col - 1) - 1e-8)
-        step_i = crop_size if num_row == 1 else math.ceil((h - crop_size) / (num_row - 1) - 1e-8)
-
-        # print('step_i, stepj', step_i, step_j)
-        # exit(0)
-
-
-        parts = []
-        idxes = []
-
-        # cnt_idx = 0
-
-        i = 0  # 0~h-1
-        last_i = False
-        while i < h and not last_i:
-            j = 0
-            if i + crop_size >= h:
-                i = h - crop_size
-                last_i = True
-
-
-            last_j = False
-            while j < w and not last_j:
-                if j + crop_size >= w:
-                    j = w - crop_size
-                    last_j = True
-                # from i, j to i+crop_szie, j + crop_size
-                # print(' trans 8')
-                for trans_idx in range(self.opt['val'].get('trans_num', 1)):
-                    parts.append(self.transpose(self.voxel[:, :, i:i + crop_size, j:j + crop_size], trans_idx))
-                    idxes.append({'i': i, 'j': j, 'trans_idx': trans_idx})
-                    # cnt_idx += 1
-                j = j + step_j
-            i = i + step_i
-        if self.opt['val'].get('random_crop_num', 0) > 0:
-            for _ in range(self.opt['val'].get('random_crop_num')):
-                import random
-                i = random.randint(0, h-crop_size)
-                j = random.randint(0, w-crop_size)
-                trans_idx = random.randint(0, self.opt['val'].get('trans_num', 1) - 1)
-                parts.append(self.transpose(self.voxel[:, :, i:i + crop_size, j:j + crop_size], trans_idx))
-                idxes.append({'i': i, 'j': j, 'trans_idx': trans_idx})
-
-
-        self.origin_voxel = self.voxel
-        self.voxel = torch.cat(parts, dim=0)
-        print('----------parts voxel .. ', len(parts), self.voxel.size())
-        self.idxes = idxes
-
-
-    def grids(self):
-        b, c, h, w = self.lq.size()  # lq is after data augment (for example, crop, if have)
-        self.original_size = self.lq.size()
-        assert b == 1
-        crop_size = self.opt['val'].get('crop_size')
-        # step_j = self.opt['val'].get('step_j', crop_size)
-        # step_i = self.opt['val'].get('step_i', crop_size)
-        ##adaptive step_i, step_j
-        num_row = (h - 1) // crop_size + 1
-        num_col = (w - 1) // crop_size + 1
-
-        import math
-        step_j = crop_size if num_col == 1 else math.ceil((w - crop_size) / (num_col - 1) - 1e-8)
-        step_i = crop_size if num_row == 1 else math.ceil((h - crop_size) / (num_row - 1) - 1e-8)
-
-
-        # print('step_i, stepj', step_i, step_j)
-        # exit(0)
-
-
-        parts = []
-        idxes = []
-
-        # cnt_idx = 0
-
-        i = 0  # 0~h-1
-        last_i = False
-        while i < h and not last_i:
-            j = 0
-            if i + crop_size >= h:
-                i = h - crop_size
-                last_i = True
-
-
-            last_j = False
-            while j < w and not last_j:
-                if j + crop_size >= w:
-                    j = w - crop_size
-                    last_j = True
-                # from i, j to i+crop_szie, j + crop_size
-                # print(' trans 8')
-                for trans_idx in range(self.opt['val'].get('trans_num', 1)):
-                    parts.append(self.transpose(self.lq[:, :, i:i + crop_size, j:j + crop_size], trans_idx))
-                    idxes.append({'i': i, 'j': j, 'trans_idx': trans_idx})
-                    # cnt_idx += 1
-                j = j + step_j
-            i = i + step_i
-        if self.opt['val'].get('random_crop_num', 0) > 0:
-            for _ in range(self.opt['val'].get('random_crop_num')):
-                import random
-                i = random.randint(0, h-crop_size)
-                j = random.randint(0, w-crop_size)
-                trans_idx = random.randint(0, self.opt['val'].get('trans_num', 1) - 1)
-                parts.append(self.transpose(self.lq[:, :, i:i + crop_size, j:j + crop_size], trans_idx))
-                idxes.append({'i': i, 'j': j, 'trans_idx': trans_idx})
-
-
-        self.origin_lq = self.lq
-        self.lq = torch.cat(parts, dim=0)
-        # print('parts .. ', len(parts), self.lq.size())
-        self.idxes = idxes
-
-    def grids_inverse(self):
-        preds = torch.zeros(self.original_size).to(self.device)
-        b, c, h, w = self.original_size
-
-        print('...', self.device)
-
-        count_mt = torch.zeros((b, 1, h, w)).to(self.device)
-        crop_size = self.opt['val'].get('crop_size')
-
-        for cnt, each_idx in enumerate(self.idxes):
-            i = each_idx['i']
-            j = each_idx['j']
-            trans_idx = each_idx['trans_idx']
-            preds[0, :, i:i + crop_size, j:j + crop_size] += self.transpose_inverse(self.output[cnt, :, :, :].unsqueeze(0), trans_idx).squeeze(0)
-            count_mt[0, 0, i:i + crop_size, j:j + crop_size] += 1.
-
-        self.output = preds / count_mt
-        self.lq = self.origin_lq
-        self.voxel = self.origin_voxel
-
 
     def optimize_parameters(self, current_iter):
         self.optimizer_g.zero_grad()
 
-        if self.opt['datasets']['train'].get('use_mask'):
-            preds = self.net_g(x = self.lq, event = self.voxel, mask = self.mask)
 
-        elif self.opt['datasets']['train'].get('return_ren'):
-            preds = self.net_g(x = self.lq, event = self.voxel, ren = self.ren)
-
-        else:
-            preds = self.net_g(self.lq)
-            # preds = self.net_g(x = self.lq, event = self.voxel)
+        # preds = self.net_g(self.lq)
+        preds = self.net_g(x = self.lq, event = self.gen_event)
+        # preds = self.net_g(x = self.lq, event = self.voxel)
 
         if not isinstance(preds, list):
             preds = [preds]
@@ -338,9 +191,9 @@ class ImageEventRestorationModel(BaseModel):
             if self.pixel_type == 'PSNRATLoss':
                 l_pix += self.cri_pix(*preds, self.gt)
 
-            elif self.pixel_type == 'PSNRGateLoss':
-                for pred in preds:
-                    l_pix += self.cri_pix(pred, self.gt, self.mask)
+            # elif self.pixel_type == 'PSNRGateLoss':
+            #     for pred in preds:
+            #         l_pix += self.cri_pix(pred, self.gt, self.mask)
 
             elif self.pixel_type == 'PSNRLoss':
                 for pred in preds:
@@ -392,25 +245,14 @@ class ImageEventRestorationModel(BaseModel):
                 if j >= n:
                     j = n
 
-                    b, c, h, w = self.lq[i:j].shape
-                    h_n = (32 - h % 32) % 32
-                    w_n = (32 - w % 32) % 32
-                    in_tensor = F.pad(self.lq[i:j], (0, w_n, 0, h_n), mode='reflect')
-                    self.lq = in_tensor
-
-                if self.opt['datasets']['val'].get('use_mask'):
-                    pred = self.net_g(x = self.lq[i:j, :, :, :], event = self.voxel[i:j, :, :, :], mask = self.mask[i:j, :, :, :])  # mini batch all in 
-
-                elif self.opt['datasets']['val'].get('return_ren'):
-                    pred = self.net_g(x = self.lq[i:j, :, :, :], event = self.voxel[i:j, :, :, :], ren = self.ren[i:j,:])
-
-                else:
-                    pred = self.net_g(y = self.lq)
-                    # pred = self.net_g(x = self.lq[i:j, :, :, :], event = self.voxel[i:j, :, :, :])  # mini batch all in 
+                # if self.opt['datasets']['val'].get('use_mask'):
+                #     pred = self.net_g(x = self.lq[i:j, :, :, :], event = self.voxel[i:j, :, :, :], mask = self.mask[i:j, :, :, :])  # mini batch all in 
+                # else:
+                # pred = self.net_g(x = self.lq[i:j, :, :, :], event = self.voxel[i:j, :, :, :])  # mini batch all in 
+                pred = self.net_g(x = self.lq[i:j, :, :, :], event = self.gen_event[i:j, :, :, :])  # mini batch all in 
             
                 if isinstance(pred, list):
                     pred = pred[-1]
-                pred = pred[:, :, :h, :w]
                 outs.append(pred)
                 i = j
 
@@ -461,16 +303,6 @@ class ImageEventRestorationModel(BaseModel):
 
             img_name = '{:06d}'.format(cnt)
 
-
-            lq = val_data['frame']
-            
-            # event = val_data['voxel']
-            event = val_data['gen_event']
-            # event = torch.flip(event,dims=[1])
-
-            lq = torch.cat([lq,event],dim=(1))
-            val_data['frame'] = lq
-
             
             self.feed_data(val_data)
             if self.opt['val'].get('grids') is not None:
@@ -519,24 +351,7 @@ class ImageEventRestorationModel(BaseModel):
                 imwrite(sr_img, save_img_path)
                 imwrite(gt_img, save_gt_img_path)
 
-            # if with_metrics:
-            #     # calculate metrics
-            #     with open('gopro_reversed.txt', 'a') as f:
-            #         scores = []
-            #         opt_metric = deepcopy(self.opt['val']['metrics'])
-            #         if use_image:
-            #             for name, opt_ in opt_metric.items():
-            #                 metric_type = opt_.pop('type')
-            #                 self.metric_results[name] += getattr(
-            #                     metric_module, metric_type)(sr_img, gt_img, **opt_)
-            #                 scores.append(getattr(metric_module, metric_type)(sr_img, gt_img, **opt_))
-            #             f.write(f'{scores[0]:.3f}_{scores[1]:.5f}\n')
-            #         else:
-            #             for name, opt_ in opt_metric.items():
-            #                 metric_type = opt_.pop('type')
-            #                 self.metric_results[name] += getattr(
-            #                     metric_module, metric_type)(visuals['result'], visuals['gt'], **opt_)
-
+    
             # default setting
             if with_metrics:
                 # calculate metrics
@@ -563,118 +378,6 @@ class ImageEventRestorationModel(BaseModel):
         if with_metrics:
             for metric in self.metric_results.keys():
                 self.metric_results[metric] /= cnt
-                current_metric = self.metric_results[metric]
-
-            self._log_validation_metric_values(current_iter, dataset_name,
-                                               tb_logger)
-        return current_metric
-
-
-############ use when training #################
-    def custom_nondist_validation(self, dataloader, current_iter, tb_logger,
-                           save_img, rgb2bgr, use_image):
-        dataset_name = self.opt.get('name') # !
-        
-        with_metrics = self.opt['val'].get('metrics') is not None
-        if with_metrics:
-            self.metric_results = {
-                metric: 0
-                for metric in self.opt['val']['metrics'].keys()
-            }
-        pbar = tqdm(total=len(dataloader), unit='image')
-
-        cnt = 0
-
-        val_list = ['GOPR0384_11_00/image000000','GOPR0396_11_00/image000000','GOPR0410_11_00/image000000',
-                    'GOPR0410_11_00/image000099','GOPR0854_11_00/image000033','GOPR0862_11_00/image000036']
-        
-        for idx, val_data in enumerate(dataloader):
-
-            if val_data['path'][0] in val_list:
-                img_name = '{:08d}'.format(cnt)
-
-                # if val_data['path'][0] == 'GOPR0384_11_05/image000000':
-                #     lq = val_data['frame_gt']
-                # else:
-                lq = val_data['frame']
-                
-                # event_gt = val_data['voxel']
-                event = val_data['gen_event']
-
-                lq = torch.cat([lq,event],dim=(1))
-                val_data['frame'] = lq
-
-
-                self.feed_data(val_data)
-                if self.opt['val'].get('grids') is not None:
-                    self.grids()
-                    self.grids_voxel()
-
-                self.test()
-
-                if self.opt['val'].get('grids') is not None:
-                    self.grids_inverse()
-
-                visuals = self.get_current_visuals()
-                sr_img = tensor2img([visuals['result']], rgb2bgr=rgb2bgr)
-                if 'gt' in visuals:
-                    gt_img = tensor2img([visuals['gt']], rgb2bgr=rgb2bgr)
-                    del self.gt
-
-                # tentative for out of GPU memory
-                del self.lq
-                del self.output
-                torch.cuda.empty_cache()
-
-                if save_img:
-                    
-                    if self.opt['is_train']:
-                        if cnt == 1: # visualize cnt=1 image every time
-                            save_img_path = osp.join(self.opt['path']['visualization'],
-                                                    img_name,
-                                                    f'{img_name}_{current_iter}.png')
-                            
-                            save_gt_img_path = osp.join(self.opt['path']['visualization'],
-                                                    img_name,
-                                                    f'{img_name}_{current_iter}_gt.png')
-                    else:
-                        print('Save path:{}'.format(self.opt['path']['visualization']))
-                        print('Dataset name:{}'.format(dataset_name))
-                        print('Img_name:{}'.format(img_name))
-                        save_img_path = osp.join(
-                            self.opt['path']['visualization'], dataset_name,
-                            f'{img_name}.png')
-                        save_gt_img_path = osp.join(
-                            self.opt['path']['visualization'], dataset_name,
-                            f'{img_name}_gt.png')
-                        
-                    imwrite(sr_img, save_img_path)
-                    imwrite(gt_img, save_gt_img_path)
-
-                if with_metrics:
-                    # calculate metrics
-                    opt_metric = deepcopy(self.opt['val']['metrics'])
-                    if use_image:
-                        for name, opt_ in opt_metric.items():
-                            metric_type = opt_.pop('type')
-                            self.metric_results[name] += getattr(
-                                metric_module, metric_type)(sr_img, gt_img, **opt_)
-                    else:
-                        for name, opt_ in opt_metric.items():
-                            metric_type = opt_.pop('type')
-                            self.metric_results[name] += getattr(
-                                metric_module, metric_type)(visuals['result'], visuals['gt'], **opt_)
-
-            pbar.update(1)
-            # pbar.set_description(f'Test {img_name}')
-            cnt += 1
-        pbar.close()
-
-        current_metric = 0.
-        if with_metrics:
-            for metric in self.metric_results.keys():
-                # self.metric_results[metric] /= cnt
-                self.metric_results[metric] /= 6
                 current_metric = self.metric_results[metric]
 
             self._log_validation_metric_values(current_iter, dataset_name,
