@@ -1,4 +1,4 @@
-name: Gopro_test
+name: Gopro_test_tt
 model_type: ImageEventRefinementModel
 scale: 1
 num_gpu: 2
@@ -37,7 +37,7 @@ network_g:
 
 # path
 path:
-  pretrain_network_g: /workspace/data/FFTformer/experiments/Orignal_voxel_to_SCER_PSNR/models/net_g_80000.pth
+  pretrain_network_g: /workspace/FFTformer/pretrain_model/teacher.pth
   strict_load_g: true
   resume_state: ~
 
@@ -45,7 +45,7 @@ path:
 # validation settings
 val:
   val_freq: !!float 5000
-  save_img: true
+  save_img: false
 
   metrics:
     rmse: # metric name, can be arbitrary
