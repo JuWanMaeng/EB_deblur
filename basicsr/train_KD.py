@@ -67,7 +67,7 @@ def parse_options(is_train=True):
 
 
 def init_loggers(opt):
-    log_file = osp.join(opt['path']['log'],
+    log_file = osp.join(opt['s_path']['log'],
                         f"train_{opt['name']}_{get_time_str()}.log")
     logger = get_root_logger(
         logger_name='basicsr', log_level=logging.INFO, log_file=log_file)
@@ -146,7 +146,7 @@ def main():
 
     # automatic resume ..
     state_folder_path = '/workspace/data/FFTformer/experiments/{}/training_states/'.format(opt['name'])
-    opt['path']['log'] = '/workspace/data/FFTformer/experiments/{}'.format(opt['name'])
+    opt['s_path']['log'] = '/workspace/data/FFTformer/experiments/{}'.format(opt['name'])
 
     import os
     try:
@@ -159,13 +159,13 @@ def main():
         print('!!!!!! resume state .. ', states, state_folder_path)
         max_state_file = '{}.state'.format(max([int(x[0:-6]) for x in states]))
         resume_state = os.path.join(state_folder_path, max_state_file)
-        opt['path']['resume_state'] = resume_state
+        opt['s_path']['resume_state'] = resume_state
 
     # load resume states if necessary
-    if opt['path'].get('resume_state'):
+    if opt['s_path'].get('resume_state'):
         device_id = torch.cuda.current_device()
         resume_state = torch.load(
-            opt['path']['resume_state'],
+            opt['s_path']['resume_state'],
             map_location=lambda storage, loc: storage.cuda(device_id))
     else:
         resume_state = None
@@ -288,6 +288,6 @@ def main():
 
 if __name__ == '__main__':
     import os
-    os.environ['CUDA_VISIBLE_DEVICES']='2,3'
+    os.environ['CUDA_VISIBLE_DEVICES']='0,1,2,3'
     os.environ['GRPC_POLL_STRATEGY']='epoll1'
     main()

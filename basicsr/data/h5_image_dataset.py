@@ -81,15 +81,24 @@ class H5ImageDataset(data.Dataset):
             self.h5_file = h5py.File(self.data_path, 'r')
         return self.h5_file['voxels']['voxel{:09d}'.format(index)][:]
 
-    def get_mask(self, index):
+    def get_original_voxel(self, index):
         """
-        Get event mask at index
-        @param index The index of the event mask to get
+        Get voxels at index
+        @param index The index of the voxels to get
         """
         if self.h5_file is None:
             self.h5_file = h5py.File(self.data_path, 'r')
-        return self.h5_file['masks']['mask{:09d}'.format(index)][:]
+        return self.h5_file['original_voxels']['image{:09d}'.format(index)][:]
     
+    def get_refined_event(self, index):
+        """
+        Get refined from original voxel+blur image to SCER supervision
+        @param index The index of the voxels to get
+        """
+        if self.h5_file is None:
+            self.h5_file = h5py.File(self.data_path, 'r')
+        return self.h5_file['refined']['image{:09d}'.format(index)][:]
+
     def get_gen_event(self, index):
         """
         Get event mask at index
@@ -97,11 +106,10 @@ class H5ImageDataset(data.Dataset):
         """
         if self.h5_file is None:
             self.h5_file = h5py.File(self.data_path, 'r')
-        return self.h5_file['refined']['image{:09d}'.format(index)][:]
+        return self.h5_file['gen_event']['image{:09d}'.format(index)][:]
 
 
-    def __init__(self, opt, data_path, return_voxel=True, return_frame=True, return_gt_frame=True,
-            return_mask=False, norm_voxel=True):
+    def __init__(self, opt, data_path, norm_voxel=True):
 
         super(H5ImageDataset, self).__init__()
         self.opt = opt
@@ -110,26 +118,13 @@ class H5ImageDataset(data.Dataset):
         self.seq_name = self.seq_name.split('.')[0]
         self.return_format = 'torch'
 
-        self.return_gen_event = opt['return_gen_event']
-        self.return_voxel = return_voxel
-        self.return_frame = return_frame
-        self.return_gt_frame = opt.get('return_gt_frame', return_gt_frame)
-        self.return_voxel = opt.get('return_voxel', return_voxel)
-        self.return_mask = opt.get('return_mask', return_mask)
         
         self.norm_voxel = norm_voxel # -MAX~MAX -> -1 ~ 1 
         self.h5_file = None
         self.transforms={}
         self.mean = opt['mean'] if 'mean' in opt else None
         self.std = opt['std'] if 'std' in opt else None
-        self.threshold = 0.01
 
-
-        if self.opt['norm_voxel'] is not None:
-            self.norm_voxel = self.opt['norm_voxel']   # -MAX~MAX -> -1 ~ 1 
-        
-        if self.opt['return_voxel'] is not None:
-            self.return_voxel = self.opt['return_voxel']
 
         if self.opt['crop_size'] is not None:
             self.transforms["RandomCrop"] = {"size": self.opt['crop_size']}
@@ -137,17 +132,7 @@ class H5ImageDataset(data.Dataset):
         if self.opt['use_flip']:
             self.transforms["RandomFlip"] = {}
 
-        if 'LegacyNorm' in self.transforms.keys() and 'RobustNorm' in self.transforms.keys():
-            raise Exception('Cannot specify both LegacyNorm and RobustNorm')
-
         self.normalize_voxels = False
-        for norm in ['RobustNorm', 'LegacyNorm']:
-            if norm in self.transforms.keys():
-                vox_transforms_list = [eval(t)(**kwargs) for t, kwargs in self.transforms.items()]
-                del (self.transforms[norm])
-                self.normalize_voxels = True
-                self.vox_transform = Compose(vox_transforms_list)
-                break
 
         transforms_list = [eval(t)(**kwargs) for t, kwargs in self.transforms.items()]
 
@@ -170,44 +155,26 @@ class H5ImageDataset(data.Dataset):
             raise IndexError
         seed = random.randint(0, 2 ** 32) if seed is None else seed
         item={}
+
+        # blur image
         frame = self.get_frame(index)
-        if self.return_gt_frame:
-            frame_gt = self.get_gt_frame(index)
-            frame_gt = self.transform_frame(frame_gt, seed, transpose_to_CHW=False)
-        if index < 0 or index >= self.__len__():
-            raise IndexError
-        seed = random.randint(0, 2 ** 32) if seed is None else seed
-        item={}
-        frame = self.get_frame(index)
-    
         frame = self.transform_frame(frame, seed, transpose_to_CHW=False)  # to tensor
+        item['frame'] = frame
+
+        # SDv2 gen event
         gen_event = self.get_gen_event(index)  
-        # gen_event = np.concatenate((gen_event[:1, :, :], gen_event[2:, :, :]), axis=0)
+        gen_event = torch.from_numpy(gen_event)
+        item['gen_event'] = self.transform_gen_event(gen_event, seed)
 
-        # gen_event[np.abs(gen_event) < self.threshold] = 0
-        # gen_event = gen_event.transpose(1,2,0)
+        # original voxel event
+        original_voxel = self.get_original_voxel(index)
+        item['original_voxel'] = self.transform_voxel(original_voxel, seed,transpose_to_CHW=False)
 
+        # refined event from original voxel and blur image
+        refined_event = self.get_refined_event(index)
+        refined_event = torch.from_numpy(refined_event)
+        item['refined_event'] = self.transform_gen_event(refined_event, seed)
 
-
-        voxel = self.get_voxel(index)
-        voxel = self.transform_voxel(voxel,seed,transpose_to_CHW=False)
-
-        # normalize RGB
-        if self.mean is not None or self.std is not None:
-            normalize(frame, self.mean, self.std, inplace=True)
-            if self.return_gt_frame:
-                normalize(frame_gt, self.mean, self.std, inplace=True)
-
-        if self.return_gen_event:
-            gen_event = torch.from_numpy(gen_event)
-            item['gen_event'] = self.transform_gen_event(gen_event, seed)
-        if self.return_frame:
-            item['frame'] = frame
-        if self.return_gt_frame:
-            item['frame_gt'] = frame_gt
-        item['voxel'] = voxel
-        
-            
         item['seq'] = self.seq_name
         item['path'] = os.path.join(self.seq_name, 'image{:06d}'.format(index))
 

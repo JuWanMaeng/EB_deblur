@@ -80,9 +80,9 @@ class NAFBlock(nn.Module):
         return y + x * self.gamma
 
 
-class NAFNetFJ(nn.Module):
+class KD_NAFNet(nn.Module):
 
-    def __init__(self, img_channel=3, width=16, middle_blk_num=1, enc_blk_nums=[], dec_blk_nums=[]):
+    def __init__(self, img_channel=6, width=16, middle_blk_num=1, enc_blk_nums=[], dec_blk_nums=[]):
         super().__init__()
 
         self.intro = nn.Conv2d(in_channels=9, out_channels=width, kernel_size=3, padding=1, stride=1, groups=1,
@@ -131,34 +131,57 @@ class NAFNetFJ(nn.Module):
 
     def forward(self, y):
         B, C, H, W = y.shape
-        if y.shape[1] != 3:
-            inp = y
-            inp_img = y[:,0:6,:,:]  # event 
-            # inp_img = y[:,0:3,:,:]  # img
-        else:
-            inp = y
-            inp_img = y
 
+        inp = y
+        input_event = y[:, 3:, :, :]
+
+        # 초기 특징 추출
         x = self.intro(inp)
 
-        encs = []
-
+        # ---------------------------
+        # Encoder: 각 encoder block의 출력 저장
+        # ---------------------------
+        encoder_feats = []
         for encoder, down in zip(self.encoders, self.downs):
             x = encoder(x)
-            encs.append(x)
+            encoder_feats.append(x)  # 각 encoder 단계의 feature 저장
             x = down(x)
 
-        x = self.middle_blks(x)
+        # ---------------------------
+        # Middle blocks: 첫 번째와 마지막 블록의 feature 추출
+        # ---------------------------
+        middle_feats_first = None
+        # nn.Sequential은 iterable하므로 각 block을 순차적으로 적용
+        for i, block in enumerate(self.middle_blks):
+            x = block(x)
+            if i == 0:
+                middle_feats_first = x  # 첫 번째 middle block의 feature
+        middle_feats_last = x  # 마지막 middle block의 feature
 
-        for decoder, up, enc_skip in zip(self.decoders, self.ups, encs[::-1]):
+        # ---------------------------
+        # Decoder: 각 decoder block의 출력 저장
+        # ---------------------------
+        decoder_feats = []
+        # encoder_feats는 저장한 순서대로 있으므로, decoder의 skip connection은 역순으로 사용
+        encs_reversed = encoder_feats[::-1]
+        for up, decoder, enc_skip in zip(self.ups, self.decoders, encs_reversed):
             x = up(x)
+            if x.shape[2:] != enc_skip.shape[2:]:
+                x = F.interpolate(x, size=enc_skip.shape[2:], mode='bilinear', align_corners=False)
             x = x + enc_skip
             x = decoder(x)
+            decoder_feats.append(x)  # 각 decoder 단계의 feature 저장
 
+        # ---------------------------
+        # 최종 출력
+        # ---------------------------
         x = self.ending(x)
-        x = x + inp_img
+        x = x + input_event
+        out = x[:, :, :H, :W]
 
-        return x[:, :, :H, :W]
+        # 최종 출력과 함께, encoder, decoder, middle (첫번째, 마지막) feature들을 반환
+        return out, encoder_feats, decoder_feats, middle_feats_first, middle_feats_last
+
 
     def check_image_size(self, x):
         _, _, h, w = x.size()

@@ -28,7 +28,7 @@ class KnowledgeDistillationModel(BaseModel):
         t_load_path = self.opt['t_path'].get('pretrain_network', None)
         if t_load_path is not None:
             self.load_network(self.net_t, t_load_path,
-                              self.opt['t_path'].get('strict_load_g', True), param_key=self.opt['path'].get('param_key', 'params'))
+                              self.opt['t_path'].get('strict_load_g', True), param_key=self.opt['t_path'].get('param_key', 'params'))
             self.net_t.eval()
             print('Teacher model loaded complete')
 
@@ -39,7 +39,7 @@ class KnowledgeDistillationModel(BaseModel):
         s_load_path = self.opt['s_path'].get('pretrain_network', None)
         if s_load_path is not None:
             self.load_network(self.net_s, s_load_path,
-                              self.opt['s_path'].get('strict_load_g', True), param_key=self.opt['path'].get('param_key', 'params'))
+                              self.opt['s_path'].get('strict_load_g', True), param_key=self.opt['s_path'].get('param_key', 'params'))
 
         if self.is_train:
             self.init_training_settings()
@@ -53,8 +53,10 @@ class KnowledgeDistillationModel(BaseModel):
         else:
             self.wandb = False
 
+        self.lambda_pix, self.lambda_enc, self.lambda_dec, self.lambda_mid = 1, 0.5, 0.5, 0.25
+
     def init_training_settings(self):
-        self.net_g.train()
+        self.net_s.train()
         train_opt = self.opt['train']
 
         # define losses
@@ -86,7 +88,7 @@ class KnowledgeDistillationModel(BaseModel):
         optim_params = []
         optim_params_lowlr = []
 
-        for k, v in self.net_g.named_parameters():
+        for k, v in self.net_s.named_parameters():
             if v.requires_grad:
                 if k.startswith('module.offsets') or k.startswith('module.dcns'):
                     optim_params_lowlr.append(v)
@@ -98,61 +100,31 @@ class KnowledgeDistillationModel(BaseModel):
         # print(optim_params)
         ratio = 0.1
 
-        optim_type = train_opt['optim_g'].pop('type')
+        optim_type = train_opt['optim_s'].pop('type')
 
         if optim_type == 'Adam':
-            self.optimizer_g = torch.optim.Adam(
+            self.optimizer_s = torch.optim.Adam(
                 [{'params': optim_params},
-                {'params': optim_params_lowlr, 'lr': train_opt['optim_g']['lr'] * ratio}],
-                **train_opt['optim_g']
+                {'params': optim_params_lowlr, 'lr': train_opt['optim_s']['lr'] * ratio}],
+                **train_opt['optim_s']
             )
         elif optim_type == 'AdamW':
-            self.optimizer_g = torch.optim.AdamW(
+            self.optimizer_s = torch.optim.AdamW(
                                                     [{'params': optim_params},
-                {'params': optim_params_lowlr, 'lr': train_opt['optim_g']['lr'] * ratio}],
-                **train_opt['optim_g']
-            )
-        elif optim_type == 'SGD':
-            self.optimizer_g = torch.optim.SGD(
-                [{'params': optim_params},
-                {'params': optim_params_lowlr, 'lr': train_opt['optim_g']['lr'] * ratio}],
-                **train_opt['optim_g']
-            )
-        elif optim_type == 'RMSprop':
-            self.optimizer_g = torch.optim.RMSprop(
-                [{'params': optim_params},
-                {'params': optim_params_lowlr, 'lr': train_opt['optim_g']['lr'] * ratio}],
-                    **train_opt['optim_g']
-                )
-        elif optim_type == 'Adagrad':
-            self.optimizer_g = torch.optim.Adagrad(
-                [{'params': optim_params},
-                {'params': optim_params_lowlr, 'lr': train_opt['optim_g']['lr'] * ratio}],
-                **train_opt['optim_g']
-            )
-        elif optim_type == 'Adamax':
-            self.optimizer_g = torch.optim.Adamax(
-                [{'params': optim_params},
-                {'params': optim_params_lowlr, 'lr': train_opt['optim_g']['lr'] * ratio}],
-            **train_opt['optim_g']
+                {'params': optim_params_lowlr, 'lr': train_opt['optim_s']['lr'] * ratio}],
+                **train_opt['optim_s']
             )
         else:
             raise NotImplementedError(f"Optimizer {optim_type} is not implemented")
 
-        self.optimizers.append(self.optimizer_g)
+        self.optimizers.append(self.optimizer_s)
 
     def feed_data(self, data):
 
         self.lq = data['frame'].to(self.device)
-        self.lq = self.lq.float()
-        if 'voxel' in data:
-            self.voxel=data['voxel'].to(self.device) 
-
-        if 'frame_gt' in data:
-            self.gt = data['frame_gt'].to(self.device)
-        
-        if 'gen_event' in data:
-            self.gen_event = data['gen_event'].to(self.device)
+        self.gen_event = data['gen_event'].to(self.device)
+        self.original_voxel = data['original_voxel'].to(self.device)
+        self.refined_event = data['refined_event'].to(self.device)
 
     def transpose(self, t, trans_idx):
         # print('transpose jt .. ', t.size())
@@ -169,59 +141,66 @@ class KnowledgeDistillationModel(BaseModel):
 
 
     def optimize_parameters(self, current_iter):
-        self.optimizer_g.zero_grad()
+        self.optimizer_s.zero_grad()
+
+        teacher_input = torch.cat([self.lq,self.original_voxel], dim=1)
+        student_input = torch.cat([self.lq, self.gen_event], dim=1)
+
+        with torch.no_grad():
+            teacher_outputs = self.net_t(teacher_input)
+            # teacher_outputs: (teacher_out, teacher_enc_feats, teacher_dec_feats, teacher_mid_first, teacher_mid_last)
+            teacher_out, teacher_enc_feats, teacher_dec_feats, teacher_mid_first, teacher_mid_last = teacher_outputs
+
+        # Student 모델 forward
+        student_outputs = self.net_s(student_input)
+        # student_outputs: (student_out, student_enc_feats, student_dec_feats, student_mid_first, student_mid_last)
+        student_out, student_enc_feats, student_dec_feats, student_mid_first, student_mid_last = student_outputs
 
 
-        # preds = self.net_g(self.lq)
-        preds = self.net_g(x = self.lq, event = self.gen_event)
-        # preds = self.net_g(x = self.lq, event = self.voxel)
-
-        if not isinstance(preds, list):
-            preds = [preds]
-
-        self.output = preds[-1]
+        self.output = student_out  # 최종 student 출력 저장
 
         l_total = 0
         loss_dict = OrderedDict()
-        # pixel loss
+
+        # 1. Pixel Loss (예: MSE, PSNRLoss 등)
         if self.cri_pix:
-            l_pix = 0.
-
-            if self.pixel_type == 'PSNRATLoss':
-                l_pix += self.cri_pix(*preds, self.gt)
-
-            # elif self.pixel_type == 'PSNRGateLoss':
-            #     for pred in preds:
-            #         l_pix += self.cri_pix(pred, self.gt, self.mask)
-
-            elif self.pixel_type == 'PSNRLoss':
-                for pred in preds:
-                    l_pix += self.cri_pix(pred, self.gt)
-            
-            else:
-                for pred in preds:
-                    l_pix += self.cri_pix(pred, self.gt)    
-
-            l_total += l_pix
-            loss_dict['l_pix'] = l_pix
-
-        # fft loss
-        if self.cri_fft:
-            l_fft = self.cri_fft(preds[-1], self.gt)
-            l_total += l_fft
-            loss_dict['l_fft'] = l_fft         
-
-        
+            l_pix = self.cri_pix(student_out, teacher_out)
+            loss_dict['l_pix'] = l_pix.item()
+            l_total += l_pix * self.lambda_pix
 
 
-        l_total = l_total + 0 * sum(p.sum() for p in self.net_g.parameters())
+        # 2. Encoder Feature Loss (모든 encoder 단계 feature 평균)
+        l_enc = 0
+        for s_feat, t_feat in zip(student_enc_feats, teacher_enc_feats):
+            l_enc += F.mse_loss(s_feat, t_feat)
+        if len(student_enc_feats) > 0:
+            l_enc = l_enc / len(student_enc_feats)
+        loss_dict['l_enc'] = l_enc.item()
+        l_total += l_enc * self.lambda_enc
+     
+        # 3. Decoder Feature Loss (모든 decoder 단계 feature 평균)
+        l_dec = 0
+        for s_feat, t_feat in zip(student_dec_feats, teacher_dec_feats):
+            l_dec += F.mse_loss(s_feat, t_feat)
+        if len(student_dec_feats) > 0:
+            l_dec = l_dec / len(student_dec_feats)
+        loss_dict['l_dec'] = l_dec.item()
+        l_total += l_dec * self.lambda_dec
 
+        # 4. Middle Feature Loss (middle 블록 중 첫 번째와 마지막 feature 사용)
+        l_mid_first = F.mse_loss(student_mid_first, teacher_mid_first)
+        l_mid_last = F.mse_loss(student_mid_last, teacher_mid_last)
+        l_mid = (l_mid_first + l_mid_last) / 2
+        loss_dict['l_mid'] = l_mid.item()
+        l_total += l_mid * self.lambda_mid
+
+        loss_dict['l_total'] = l_total.item()
         l_total.backward()
 
         use_grad_clip = self.opt['train'].get('use_grad_clip', True)
         if use_grad_clip:
-            torch.nn.utils.clip_grad_norm_(self.net_g.parameters(), 0.01)
-        self.optimizer_g.step()
+            torch.nn.utils.clip_grad_norm_(self.net_s.parameters(), 0.01)
+        self.optimizer_s.step()
 
 
         self.log_dict = self.reduce_loss_dict(loss_dict)
@@ -230,10 +209,14 @@ class KnowledgeDistillationModel(BaseModel):
             local_rank = os.environ.get('LOCAL_RANK', '0')
             if local_rank == '0':
                 # wandb.log({'train_loss': l_total.item(), 'iter':current_iter})
-                wandb.log({'train_loss': loss_dict['l_pix'].item(), 'iter':current_iter})
+                wandb.log({'output_loss': loss_dict['l_pix'].item(), 'iter':current_iter})
+                wandb.log({'enc_loss': loss_dict['l_enc'].item(), 'iter':current_iter})
+                wandb.log({'dec_loss': loss_dict['l_dec'].item(), 'iter':current_iter})
+                wandb.log({'mid_loss': loss_dict['l_mid'].item(), 'iter':current_iter})
+                wandb.log({'total_loss': loss_dict['l_total'].item(), 'iter':current_iter})
 
     def test(self):
-        self.net_g.eval()
+        self.net_s.eval()
         with torch.no_grad():
             n = self.lq.size(0)  # n: batch size
             outs = []
@@ -244,19 +227,16 @@ class KnowledgeDistillationModel(BaseModel):
                 if j >= n:
                     j = n
 
-                # if self.opt['datasets']['val'].get('use_mask'):
-                #     pred = self.net_g(x = self.lq[i:j, :, :, :], event = self.voxel[i:j, :, :, :], mask = self.mask[i:j, :, :, :])  # mini batch all in 
-                # else:
-                # pred = self.net_g(x = self.lq[i:j, :, :, :], event = self.voxel[i:j, :, :, :])  # mini batch all in 
-                pred = self.net_g(x = self.lq[i:j, :, :, :], event = self.gen_event[i:j, :, :, :])  # mini batch all in 
+                student_input = torch.cat([self.lq, self.gen_event], dim=1)
+                student_out = self.net_s(student_input[i:j, :, :, :])[0]  # mini batch all in 
             
-                if isinstance(pred, list):
-                    pred = pred[-1]
-                outs.append(pred)
+                if isinstance(student_out, list):
+                    student_out = student_out[-1]
+                outs.append(student_out)
                 i = j
 
             self.output = torch.cat(outs, dim=0)  # all mini batch cat in dim0
-        self.net_g.train()
+        self.net_s.train()
 
     def single_image_inference(self, img, voxel, save_path):
         self.feed_data(data={'frame': img.unsqueeze(dim=0), 'voxel': voxel.unsqueeze(dim=0)})
@@ -405,10 +385,9 @@ class KnowledgeDistillationModel(BaseModel):
         out_dict = OrderedDict()
         out_dict['lq'] = self.lq.detach().cpu()
         out_dict['result'] = self.output.detach().cpu()
-        if hasattr(self, 'gt'):
-            out_dict['gt'] = self.gt.detach().cpu()
+        out_dict['gt'] = self.refined_event.detach().cpu()
         return out_dict
 
     def save(self, epoch, current_iter):
-        self.save_network(self.net_g, 'net_g', current_iter)
+        self.save_network(self.net_s, 'net_s', current_iter)
         self.save_training_state(epoch, current_iter)

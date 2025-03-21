@@ -1,6 +1,6 @@
 # general settings
-name: EB_NAFNet_Original_to_SCER
-model_type: ImageEventRestorationModel
+name: KD_NAFNet
+model_type: KnowledgeDistillationModel
 scale: 1
 num_gpu:  2
 manual_seed: 10
@@ -11,16 +11,7 @@ datasets:
     type: H5ImageDataset
 
     # dataroot: ./datasets/GoPro_scer/train
-    dataroot: /workspace/data/GOPRO_original_voxel/train
-
-    # keep true if use events
-    norm_voxel: true
-    return_voxel: true
-
-    return_gen_event: true
-
-    return_mask: false
-    use_mask: false
+    dataroot: /workspace/data/GOPRO/train
 
     filename_tmpl: '{}'
     io_backend:
@@ -32,7 +23,7 @@ datasets:
 
     # data loader settings
     use_shuffle: true
-    num_worker_per_gpu: 2
+    num_worker_per_gpu: 1
     batch_size_per_gpu: 16 # 4 for 2080, 8 for titan
 
     # diff_weight: 0.3
@@ -43,13 +34,7 @@ datasets:
     type: H5ImageDataset
 
     # dataroot: ./datasets/test
-    dataroot: /workspace/data/GOPRO_original_voxel/test
-
-    norm_voxel: true  
-    return_voxel: true
-    return_mask: true
-    use_mask: false
-    return_gen_event: true
+    dataroot: /workspace/data/GOPRO/test
 
     io_backend:
       type: h5
@@ -62,7 +47,7 @@ dataset_name: GoPro
 
 # network structures
 network_teacher:
-  type: NAFNet
+  type: KD_NAFNet
   width: 64
   enc_blk_nums: [1, 1, 1, 28]
   middle_blk_num: 1
@@ -70,12 +55,12 @@ network_teacher:
 
 # teacher path
 t_path:
-  pretrain_network: ~
+  pretrain_network: pretrain_model/teacher.pth
   strict_load_g: true
   resume_state: ~
 
 network_student:
-  type: NAFNet
+  type: KD_NAFNet
   width: 64
   enc_blk_nums: [1, 1, 1, 28]
   middle_blk_num: 1
@@ -90,7 +75,7 @@ s_path:
 
 # training settings
 train:
-  optim_g:
+  optim_s:
     type: AdamW
     lr: !!float 1e-3
     weight_decay: !!float 1e-3
@@ -113,13 +98,13 @@ train:
 
 # validation settings
 val:
-  val_freq: !!float 10000
+  val_freq: !!float 1
   save_img: false
 
 
   metrics:
     psnr: # metric name, can be arbitrary
-      type: calculate_psnr
+      type: calculate_event_rmse
       crop_border: 0
       test_y_channel: false
     # ssim:

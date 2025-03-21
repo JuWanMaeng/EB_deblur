@@ -58,24 +58,24 @@ def parse(opt_path, is_train=True):
                 dataset['dataroot_lq'] = osp.expanduser(dataset['dataroot_lq'])
 
     # paths
-    for key, val in opt['path'].items():
+    for key, val in opt['s_path'].items():
         if (val is not None) and ('resume_state' in key
                                   or 'pretrain_network' in key):
-            opt['path'][key] = osp.expanduser(val)
-    opt['path']['root'] = osp.abspath(
+            opt['s_path'][key] = osp.expanduser(val)
+    opt['s_path']['root'] = osp.abspath(
         osp.join(__file__, osp.pardir, osp.pardir, osp.pardir))
     
-    opt['path']['root'] = '/workspace/data/FFTformer' ##############
+    opt['s_path']['root'] = '/workspace/data/FFTformer' ##############
 
     if is_train:
-        experiments_root = osp.join(opt['path']['root'], 'experiments',
+        experiments_root = osp.join(opt['s_path']['root'], 'experiments',
                                     opt['name'])
-        opt['path']['experiments_root'] = experiments_root
-        opt['path']['models'] = osp.join(experiments_root, 'models')
-        opt['path']['training_states'] = osp.join(experiments_root,
+        opt['s_path']['experiments_root'] = experiments_root
+        opt['s_path']['models'] = osp.join(experiments_root, 'models')
+        opt['s_path']['training_states'] = osp.join(experiments_root,
                                                   'training_states')
-        opt['path']['log'] = experiments_root
-        opt['path']['visualization'] = osp.join(experiments_root,
+        opt['s_path']['log'] = experiments_root
+        opt['s_path']['visualization'] = osp.join(experiments_root,
                                                 'visualization')
 
         # change some options for debug mode
@@ -85,10 +85,10 @@ def parse(opt_path, is_train=True):
             opt['logger']['print_freq'] = 1
             opt['logger']['save_checkpoint_freq'] = 8
     else:  # test
-        results_root = osp.join(opt['path']['root'], 'results', opt['name'])
-        opt['path']['results_root'] = results_root
-        opt['path']['log'] = results_root
-        opt['path']['visualization'] = osp.join(results_root, 'visualization')
+        results_root = osp.join(opt['s_path']['root'], 'results', opt['name'])
+        opt['s_path']['results_root'] = results_root
+        opt['s_path']['log'] = results_root
+        opt['s_path']['visualization'] = osp.join(results_root, 'visualization')
 
     return opt
 
