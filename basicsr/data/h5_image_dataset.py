@@ -88,7 +88,7 @@ class H5ImageDataset(data.Dataset):
         """
         if self.h5_file is None:
             self.h5_file = h5py.File(self.data_path, 'r')
-        return self.h5_file['original_voxels']['image{:09d}'.format(index)][:]
+        return self.h5_file['original_voxels']['voxel{:09d}'.format(index)][:]
     
     def get_refined_event(self, index):
         """

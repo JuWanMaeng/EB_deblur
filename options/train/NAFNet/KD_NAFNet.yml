@@ -2,7 +2,7 @@
 name: KD_NAFNet
 model_type: KnowledgeDistillationModel
 scale: 1
-num_gpu:  4
+num_gpu:  1
 manual_seed: 10
 
 datasets:
@@ -11,7 +11,7 @@ datasets:
     type: H5ImageDataset
 
     # dataroot: ./datasets/GoPro_scer/train
-    dataroot: /workspace/data/GOPRO/train
+    dataroot: /workspace/data/GOPRO_original_voxel/train
 
     filename_tmpl: '{}'
     io_backend:
@@ -34,7 +34,7 @@ datasets:
     type: H5ImageDataset
 
     # dataroot: ./datasets/test
-    dataroot: /workspace/data/GOPRO/test
+    dataroot: /workspace/data/GOPRO_original_voxel/test
 
     io_backend:
       type: h5
@@ -77,7 +77,7 @@ s_path:
 train:
   optim_s:
     type: AdamW
-    lr: !!float 1e-3
+    lr: !!float 1e-4
     weight_decay: !!float 1e-3
     betas: [0.9, 0.9]
 
