@@ -53,7 +53,7 @@ class KnowledgeDistillationModel(BaseModel):
         else:
             self.wandb = False
 
-        self.lambda_pix, self.lambda_enc, self.lambda_dec, self.lambda_mid = 1, 0.5, 0.5, 0.25
+        self.lambda_pix, self.lambda_enc, self.lambda_dec, self.lambda_mid = 1, 0.2, 0.2, 0.3
 
     def init_training_settings(self):
         self.net_s.train()
@@ -165,7 +165,7 @@ class KnowledgeDistillationModel(BaseModel):
         # 1. Pixel Loss (예: MSE, PSNRLoss 등)
         if self.cri_pix:
             l_pix = self.cri_pix(student_out, teacher_out)
-            loss_dict['l_pix'] = l_pix.item()
+            loss_dict['l_pix'] = l_pix
             l_total += l_pix * self.lambda_pix
 
 
@@ -175,7 +175,7 @@ class KnowledgeDistillationModel(BaseModel):
             l_enc += F.mse_loss(s_feat, t_feat)
         if len(student_enc_feats) > 0:
             l_enc = l_enc / len(student_enc_feats)
-        loss_dict['l_enc'] = l_enc.item()
+        loss_dict['l_enc'] = l_enc
         l_total += l_enc * self.lambda_enc
      
         # 3. Decoder Feature Loss (모든 decoder 단계 feature 평균)
@@ -184,17 +184,17 @@ class KnowledgeDistillationModel(BaseModel):
             l_dec += F.mse_loss(s_feat, t_feat)
         if len(student_dec_feats) > 0:
             l_dec = l_dec / len(student_dec_feats)
-        loss_dict['l_dec'] = l_dec.item()
+        loss_dict['l_dec'] = l_dec
         l_total += l_dec * self.lambda_dec
 
         # 4. Middle Feature Loss (middle 블록 중 첫 번째와 마지막 feature 사용)
-        l_mid_first = F.mse_loss(student_mid_first, teacher_mid_first)
-        l_mid_last = F.mse_loss(student_mid_last, teacher_mid_last)
-        l_mid = (l_mid_first + l_mid_last) / 2
-        loss_dict['l_mid'] = l_mid.item()
-        l_total += l_mid * self.lambda_mid
+        # l_mid_first = F.mse_loss(student_mid_first, teacher_mid_first)
+        # l_mid_last = F.mse_loss(student_mid_last, teacher_mid_last)
+        # l_mid = (l_mid_first + l_mid_last) / 2
+        # loss_dict['l_mid'] = l_mid
+        # l_total += l_mid * self.lambda_mid
 
-        loss_dict['l_total'] = l_total.item()
+        loss_dict['l_total'] = l_total
         l_total.backward()
 
         use_grad_clip = self.opt['train'].get('use_grad_clip', True)
@@ -212,7 +212,7 @@ class KnowledgeDistillationModel(BaseModel):
                 wandb.log({'output_loss': loss_dict['l_pix'].item(), 'iter':current_iter})
                 wandb.log({'enc_loss': loss_dict['l_enc'].item(), 'iter':current_iter})
                 wandb.log({'dec_loss': loss_dict['l_dec'].item(), 'iter':current_iter})
-                wandb.log({'mid_loss': loss_dict['l_mid'].item(), 'iter':current_iter})
+                # wandb.log({'mid_loss': loss_dict['l_mid'].item(), 'iter':current_iter})
                 wandb.log({'total_loss': loss_dict['l_total'].item(), 'iter':current_iter})
 
     def test(self):
@@ -298,7 +298,7 @@ class KnowledgeDistillationModel(BaseModel):
 
             if 'gt' in visuals:
                 gt_img = tensor2img([visuals['gt']], rgb2bgr=rgb2bgr)
-                del self.gt
+
 
             # tentative for out of GPU memory
             del self.lq
