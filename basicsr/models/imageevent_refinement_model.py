@@ -126,12 +126,12 @@ class ImageEventRefinementModel(BaseModel):
     def feed_data(self, data):
 
         self.gen_event = data['gen_event'].to(self.device) # input  # original voxel
-        self.lq = data['frame'].to(self.device)
+        self.lq = data['frame'].to(self.device)  # GT
 
-        self.voxel=data['voxel'].to(self.device) # GT
+        # self.voxel=data['voxel'].to(self.device) # GT
 
         # self.input = torch.cat([self.gen_event, self.lq], dim=1)
-        self.input = torch.cat([self.lq, self.gen_event], dim=1)
+        # self.input = torch.cat([self.lq, self.gen_event], dim=1)
 
 
     def transpose(self, t, trans_idx):
@@ -150,7 +150,7 @@ class ImageEventRefinementModel(BaseModel):
 
     def optimize_parameters(self, current_iter):
         self.optimizer_g.zero_grad()    
-        preds = self.net_g(self.input)
+        preds = self.net_g(self.lq)
 
 
         if not isinstance(preds, list):
@@ -166,37 +166,14 @@ class ImageEventRefinementModel(BaseModel):
 
             if self.pixel_type == 'PSNRLoss':
                 for pred in preds:
-                    l_pix += self.cri_pix(self.output, self.voxel)
+                    l_pix += self.cri_pix(self.output, self.gen_event)
             
             else:
                 for pred in preds:
-                    l_pix += self.cri_pix(self.output, self.voxel)    
+                    l_pix += self.cri_pix(self.output, self.gen_event)    
 
             l_total += l_pix
             loss_dict['l_pix'] = l_pix
-
-
-        # FFT loss
-        if self.cri_fft:
-            l_fft = self.cri_fft(self.output, self.voxel)
-            l_total += l_fft
-            loss_dict['l_fft'] = l_fft 
-
-
-        # KL loss
-        if self.cri_wae:
-            l_kl = 0
-            l_kl += self.cri_wae(self.output,self.voxel)
-            l_total += l_kl
-            loss_dict['l_wae'] = l_kl
-
-        # ssim loss
-        if self.cri_ssim:
-            l_ssim = 0
-            l_ssim += self.cri_ssim(self.output, self.voxel)
-            l_total += l_ssim
-            loss_dict['l_ssim'] = l_ssim
-
 
 
         l_total = l_total + 0 * sum(p.sum() for p in self.net_g.parameters())
@@ -214,22 +191,13 @@ class ImageEventRefinementModel(BaseModel):
         if current_iter % 10 ==0:
             local_rank = os.environ.get('LOCAL_RANK', '0')
             if local_rank == '0':
-                if self.cri_pix:
-                    wandb.log({'train_loss': loss_dict['l_pix'].item() / self.cri_pix.loss_weight, 'iter':current_iter})
-                if self.cri_wae:
-                    wandb.log({'wae_loss': loss_dict['l_wae'].item() / self.cri_wae.loss_weight, 'iter':current_iter})
-                if self.cri_fft:
-                    wandb.log({'fft_loss': loss_dict['l_fft'].item() / self.cri_fft.loss_weight, 'iter':current_iter})
-                if self.cri_ssim:
-                    wandb.log({'ssim_loss': loss_dict['l_ssim'].item() / self.cri_ssim.loss_weight, 'iter':current_iter})
-
-                wandb.log({'total_loss': l_total.item() , 'iter':current_iter})
+                wandb.log({'train_loss': l_total.item() , 'iter':current_iter})
 
 
     def test(self):
         self.net_g.eval()
         with torch.no_grad():
-            n = self.input.size(0)  # n: batch size
+            n = self.lq.size(0)  # n: batch size
             outs = []
             m = self.opt['val'].get('max_minibatch', n)  # m is the minibatch, equals to batch size or mini batch size
             i = 0
@@ -239,13 +207,12 @@ class ImageEventRefinementModel(BaseModel):
                 if j >= n:
                     j = n
 
-                    b, c, h, w = self.input[i:j].shape
+                    b, c, h, w = self.lq[i:j].shape
                     h_n = (32 - h % 32) % 32
                     w_n = (32 - w % 32) % 32
-                    in_tensor = F.pad(self.input[i:j], (0, w_n, 0, h_n), mode='reflect')
-                    self.input = in_tensor
-
-                    pred = self.net_g(self.input)
+                    in_tensor = F.pad(self.lq[i:j], (0, w_n, 0, h_n), mode='reflect')
+            
+                    pred = self.net_g(in_tensor)
                     # pred = self.net_g(x = self.lq[i:j, :, :, :], event = self.voxel[i:j, :, :, :])  # mini batch all in 
             
                 if isinstance(pred, list):
@@ -307,14 +274,7 @@ class ImageEventRefinementModel(BaseModel):
             visuals = self.get_current_visuals()
 
 
-            ###############
-            # mask = (torch.abs(visuals['gt']) <= 0.05).bool()
-            # visuals['gt'].masked_fill_(mask, 0)
-            ###############
-
-
             # tentative for out of GPU memory
-            del self.input
             del self.lq
             del self.gen_event
             del self.output
@@ -373,10 +333,10 @@ class ImageEventRefinementModel(BaseModel):
 
     def get_current_visuals(self):
         out_dict = OrderedDict()
-        out_dict['lq'] = self.gen_event.detach().cpu()
+        out_dict['lq'] = self.lq.detach().cpu()
         out_dict['result'] = self.output.detach().cpu()
-        if hasattr(self, 'voxel'):
-            out_dict['gt'] = self.voxel.detach().cpu()
+        # if hasattr(self, 'voxel'):
+        out_dict['gt'] = self.gen_event.detach().cpu()
         return out_dict
 
     def save(self, epoch, current_iter):

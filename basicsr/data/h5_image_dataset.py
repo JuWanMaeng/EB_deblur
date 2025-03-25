@@ -172,23 +172,17 @@ class H5ImageDataset(data.Dataset):
         seed = random.randint(0, 2 ** 32) if seed is None else seed
         item={}
         frame = self.get_frame(index)
-        # if self.return_gt_frame:
-        #     frame_gt = self.get_gt_frame(index)
-        #     frame_gt = self.transform_frame(frame_gt, seed, transpose_to_CHW=False)
-
-        voxel = self.get_voxel(index)
         frame = self.transform_frame(frame, seed, transpose_to_CHW=False)  # to tensor
 
         gen_event = self.get_gen_event(index)  # [-1,1] , [6,H,W]
 
+        voxel = self.get_voxel(index)
 
         if self.return_gen_event:
             gen_event = torch.from_numpy(gen_event)
             item['gen_event'] = self.transform_gen_event(gen_event,seed)
         if self.return_frame:
             item['frame'] = frame
-        # if self.return_gt_frame:
-        #     item['frame_gt'] = frame_gt
         if self.return_voxel:
             item['voxel'] = self.transform_voxel(voxel, seed, transpose_to_CHW=False)
 
@@ -256,8 +250,9 @@ class H5ImageDataset(data.Dataset):
         """
         
         # normalize voxel to [-1,1]
-        max_val = torch.max(torch.abs(voxel))
-        voxel = voxel / max_val
+        # max_val = torch.max(torch.abs(voxel))
+        # voxel = voxel / max_val
+        voxel = voxel/ 1800
 
         if self.vox_transform:
             random.seed(seed)

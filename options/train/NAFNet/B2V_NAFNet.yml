@@ -1,7 +1,7 @@
-name: Orignal_voxel_to_SCER_PSNR_noNorm
+name: Orignal_voxel
 model_type: ImageEventRefinementModel
 scale: 1
-num_gpu: 2
+num_gpu: 4
 manual_seed: 10
 
 datasets:
@@ -32,7 +32,7 @@ datasets:
     # data loader settings
     use_shuffle: true
     num_worker_per_gpu: 2
-    batch_size_per_gpu: 16 # 4 for 2080, 8 for titan
+    batch_size_per_gpu: 8 # 4 for 2080, 8 for titan
 
 
   val:
@@ -101,23 +101,12 @@ train:
     loss_weight: 1
     reduction: mean
   
-  # losses
-  # fft_loss_opt:
-  #   type: FFTLoss
-  #   loss_weight: 0.01
-  #   reduction: mean
-
-  # wae_opt:
-  #   type: WaveletDomainLoss
-  #   loss_weight: 1
-  #   reduction: mean
-  #   subband_weights: (0.1, 1, 1, 1)
 
 
 
 # validation settings
 val:
-  val_freq: !!float 5000
+  val_freq: !!float 10000
   save_img: false
 
   metrics:
@@ -133,7 +122,7 @@ val:
 # logging settings
 logger:
   print_freq: 1000
-  save_checkpoint_freq: !!float 5000
+  save_checkpoint_freq: !!float 10000
   use_tb_logger: true
   wandb:
     project: ~

@@ -1,7 +1,7 @@
-name: Gopro_test_tt
+name: Gopro_test_B2V
 model_type: ImageEventRefinementModel
 scale: 1
-num_gpu: 2
+num_gpu: 1
 manual_seed: 10
 
 datasets:
@@ -37,7 +37,7 @@ network_g:
 
 # path
 path:
-  pretrain_network_g: /workspace/FFTformer/pretrain_model/teacher.pth
+  pretrain_network_g: pretrain_model/Blur2Voxel/50K.pth
   strict_load_g: true
   resume_state: ~
 
@@ -45,7 +45,7 @@ path:
 # validation settings
 val:
   val_freq: !!float 5000
-  save_img: false
+  save_img: true
 
   metrics:
     rmse: # metric name, can be arbitrary
