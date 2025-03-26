@@ -1,5 +1,5 @@
 # general settings
-name: EB_NAFNet_Original_to_SCER
+name: EB_NAFNet_V2S
 model_type: ImageEventRestorationModel
 scale: 1
 num_gpu:  4
