@@ -1,7 +1,7 @@
-name: Orignal_voxel
+name: Orignal_voxel_L1
 model_type: ImageEventRefinementModel
 scale: 1
-num_gpu: 4
+num_gpu: 2
 manual_seed: 10
 
 datasets:
@@ -32,7 +32,7 @@ datasets:
     # data loader settings
     use_shuffle: true
     num_worker_per_gpu: 2
-    batch_size_per_gpu: 8 # 4 for 2080, 8 for titan
+    batch_size_per_gpu: 16 # 4 for 2080, 8 for titan
 
 
   val:
@@ -97,7 +97,7 @@ train:
   #   reduction: mean
 
   pixel_opt:
-    type: PSNRLoss
+    type: L1Loss
     loss_weight: 1
     reduction: mean
   
