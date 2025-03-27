@@ -1,8 +1,8 @@
-# Input: 6chan Voxel from blur image
+# Input: SCER from 6chan Voxel from blur
 # Output: SCER event
 
 
-name: B2V_SCER
+name: EB_NAFNet_V2S
 model_type: ImageEventRefinementModel
 scale: 1
 num_gpu: 4

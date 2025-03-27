@@ -128,10 +128,12 @@ class ImageEventRefinementModel(BaseModel):
         self.gen_event = data['gen_event'].to(self.device) # input  # original voxel
         self.lq = data['frame'].to(self.device)  # GT
 
+        self.gt = data['frame_gt'].to(self.device)
+ 
         # self.voxel=data['voxel'].to(self.device) # GT
 
         # self.input = torch.cat([self.gen_event, self.lq], dim=1)
-        # self.input = torch.cat([self.lq, self.gen_event], dim=1)
+        self.input = torch.cat([self.lq, self.gen_event], dim=1)
 
 
     def transpose(self, t, trans_idx):
@@ -150,7 +152,7 @@ class ImageEventRefinementModel(BaseModel):
 
     def optimize_parameters(self, current_iter):
         self.optimizer_g.zero_grad()    
-        preds = self.net_g(self.lq)
+        preds = self.net_g(self.input)
 
 
         if not isinstance(preds, list):
