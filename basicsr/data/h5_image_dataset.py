@@ -97,7 +97,7 @@ class H5ImageDataset(data.Dataset):
         """
         if self.h5_file is None:
             self.h5_file = h5py.File(self.data_path, 'r')
-        return self.h5_file['V2S']['image{:09d}'.format(index)][:]
+        return self.h5_file['gen_event_FT_nonorm']['image{:09d}'.format(index)][:]
 
 
     def __init__(self, opt, data_path, return_voxel=True, return_frame=True, return_gt_frame=True,
@@ -117,7 +117,7 @@ class H5ImageDataset(data.Dataset):
         self.return_voxel = opt.get('return_voxel', return_voxel)
         self.return_mask = opt.get('return_mask', return_mask)
         
-        self.norm_voxel = norm_voxel # -MAX~MAX -> -1 ~ 1 
+        self.norm_voxel = False # -MAX~MAX -> -1 ~ 1 
         self.h5_file = None
         self.transforms={}
         self.mean = opt['mean'] if 'mean' in opt else None
