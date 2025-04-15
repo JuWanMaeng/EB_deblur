@@ -1,18 +1,3 @@
-# ------------------------------------------------------------------------
-# Copyright (c) 2022 megvii-model. All Rights Reserved.
-# ------------------------------------------------------------------------
-
-'''
-Simple Baselines for Image Restoration
-
-@article{chen2022simple,
-  title={Simple Baselines for Image Restoration},
-  author={Chen, Liangyu and Chu, Xiaojie and Zhang, Xiangyu and Sun, Jian},
-  journal={arXiv preprint arXiv:2204.04676},
-  year={2022}
-}
-'''
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -56,8 +41,7 @@ class NAFBlock(nn.Module):
         self.gamma = nn.Parameter(torch.zeros((1, c, 1, 1)), requires_grad=True)
 
     def forward(self, inp):
-        x = inp
-        x = self.norm1(x)
+        x = self.norm1(inp)
         x = self.conv1(x)
         x = self.conv2(x)
         x = self.sg(x)
@@ -71,9 +55,8 @@ class NAFBlock(nn.Module):
         x = self.dropout2(x)
         return y + x * self.gamma
 
-
-class VAENAFNet(nn.Module):
-    def __init__(self, img_channel=6, width=16, middle_blk_num=1, enc_blk_nums=[1,1,1,14], dec_blk_nums=[]):
+class NAFNetRecon(nn.Module):
+    def __init__(self, img_channel=6, width=64, middle_blk_num=1, enc_blk_nums=[], dec_blk_nums=[]):
         """
         Args:
             img_channel: 입력 이미지 채널 수
@@ -84,15 +67,14 @@ class VAENAFNet(nn.Module):
         """
         super().__init__()
 
-        self.intro = nn.Conv2d(in_channels=6, out_channels=width, kernel_size=3, padding=1, stride=1, bias=True)
+        self.intro = nn.Conv2d(in_channels=img_channel, out_channels=width, kernel_size=3, padding=1, stride=1, bias=True)
         self.ending = nn.Conv2d(in_channels=width, out_channels=img_channel, kernel_size=3, padding=1, stride=1, bias=True)
 
         self.encoders = nn.ModuleList()
-        self.decoders = nn.ModuleList()
-        self.ups = nn.ModuleList()
         self.downs = nn.ModuleList()
 
         chan = width
+        # skip connection 없이 encoder 진행
         for num in enc_blk_nums:
             self.encoders.append(
                 nn.Sequential(*[NAFBlock(chan) for _ in range(num)])
@@ -107,7 +89,13 @@ class VAENAFNet(nn.Module):
         half_middle = middle_blk_num // 2
         self.middle_encoder = nn.Sequential(*[NAFBlock(chan) for _ in range(half_middle)])
         self.middle_decoder = nn.Sequential(*[NAFBlock(chan) for _ in range(half_middle)])
+        
+        # latent 변환 모듈 추가: encoder에서 나온 latent를 64채널로 줄이고, decoder에 넣기 전에 복원
+        self.latent_to_8 = nn.Conv2d(chan, 128, kernel_size=1, stride=1, bias=True)
+        self.latent_from_8 = nn.Conv2d(128, chan, kernel_size=1, stride=1, bias=True)
 
+        self.ups = nn.ModuleList()
+        self.decoders = nn.ModuleList()
         for num in dec_blk_nums:
             self.ups.append(
                 nn.Sequential(
@@ -122,42 +110,39 @@ class VAENAFNet(nn.Module):
 
         self.padder_size = 2 ** len(self.encoders)
 
-    def encode(self, y):
-        """Encoder 부분: intro, encoder stages, downsampling, 그리고 middle_encoder"""
-        B, C, H, W = y.shape
-        if y.shape[1] != 3:
-            inp = y
-            inp_img = y[:, 0:3, :, :]  # 예를 들어, 이벤트 데이터와 이미지를 사용하는 경우
-        else:
-            inp = y
-            inp_img = y
+    def encode(self, inp):
+        """Encoder 부분: intro, encoder stages, downsampling, 그리고 middle_encoder 이후 latent 변환.
+           Skip connection은 사용하지 않습니다."""
+        B, C, H, W = inp.shape
 
         x = self.intro(inp)
-        encs = []  # skip connection 저장
-
+        # encoder + downsampling 진행 (skip connection 없이)
         for encoder, down in zip(self.encoders, self.downs):
             x = encoder(x)
-            encs.append(x)
             x = down(x)
 
         latent = self.middle_encoder(x)
-        return latent, encs, inp_img, (H, W)
+        # latent을 64채널로 변환
+        latent = self.latent_to_8(latent)
+        return latent, (H, W)
 
-    def decode(self, latent, encs, inp_img, orig_size):
-        """Decoder 부분: middle_decoder, upsampling, skip connection 및 최종 복원"""
+    def decode(self, latent, orig_size):
+        """Decoder 부분: latent 복원, middle_decoder, upsampling 및 최종 복원.
+           입력 이미지(inp)는 사용하지 않습니다."""
+        # latent를 다시 원래 채널 수로 복원하여 middle_decoder에 넣음
+        latent = self.latent_from_8(latent)
         x = self.middle_decoder(latent)
-        for decoder, up, enc_skip in zip(self.decoders, self.ups, encs[::-1]):
+        # upsampling과 decoder 진행 (skip connection 없이)
+        for decoder, up in zip(self.decoders, self.ups):
             x = up(x)
-            x = x + enc_skip
             x = decoder(x)
         x = self.ending(x)
-        x = x + inp_img
         H, W = orig_size
         return x[:, :, :H, :W]
 
     def forward(self, y):
-        latent, encs, inp_img, orig_size = self.encode(y)
-        return self.decode(latent, encs, inp_img, orig_size)
+        latent, orig_size = self.encode(y)
+        return self.decode(latent, orig_size)
 
     def check_image_size(self, x):
         _, _, h, w = x.size()
@@ -166,22 +151,20 @@ class VAENAFNet(nn.Module):
         x = F.pad(x, (0, mod_pad_w, 0, mod_pad_h))
         return x
 
-
-
 if __name__ == '__main__':
     # 디버깅을 위한 임의 입력 데이터 생성 (batch_size, 채널, height, width)
-    # 입력 채널 수는 intro의 입력에 맞게 9로 설정 (예: 이벤트와 이미지 채널 포함)
     dummy_input = torch.randn(1, 6, 256, 256)
 
-    # 모델 생성: 예시로 encoder와 decoder stage에 각각 2개의 NAFBlock을 사용합니다.
-    model = VAENAFNet(img_channel=6, width=64, middle_blk_num=28, enc_blk_nums=[1,1,1,28], dec_blk_nums=[1,1,1,1])
+    # 모델 생성: 예시로 encoder와 decoder stage에 각각 1개의 NAFBlock을 사용합니다.
+    model = NAFNetRecon(img_channel=6, width=64, middle_blk_num=28, enc_blk_nums=[1,1,1], dec_blk_nums=[1,1,1])
     
     # 모델의 forward 경로 테스트
     output = model(dummy_input)
     print("Input shape:", dummy_input.shape)
     print("Output shape:", output.shape)
 
-    # 추가적으로, encode와 decode를 별도로 테스트할 수도 있습니다.
-    latent, encs, inp_img, orig_size = model.encode(dummy_input)
-    recon = model.decode(latent, encs, inp_img, orig_size)
+    # encode와 decode를 별도로 테스트
+    latent, orig_size = model.encode(dummy_input)
+    print("Latent shape after conversion to 64 channels:", latent.shape)
+    recon = model.decode(latent, orig_size)
     print("Reconstructed output shape:", recon.shape)

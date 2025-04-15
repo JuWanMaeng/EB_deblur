@@ -145,7 +145,9 @@ def main():
     # torch.backends.cudnn.deterministic = True
 
     # automatic resume ..
-    state_folder_path = 'experiments/{}/training_states/'.format(opt['name'])
+    state_folder_path = '/workspace/data/FFTformer/experiments/{}/training_states/'.format(opt['name'])
+    opt['path']['log'] = '/workspace/data/FFTformer/experiments/{}'.format(opt['name'])
+
     import os
     try:
         states = os.listdir(state_folder_path)
@@ -199,18 +201,6 @@ def main():
     # create message logger (formatted outputs)
     msg_logger = MessageLogger(opt, current_iter, tb_logger)
 
-    # dataloader prefetcher
-    prefetch_mode = opt['datasets']['train'].get('prefetch_mode')
-    if prefetch_mode is None or prefetch_mode == 'cpu':
-        prefetcher = CPUPrefetcher(train_loader)
-    elif prefetch_mode == 'cuda':
-        prefetcher = CUDAPrefetcher(train_loader, opt)
-        logger.info(f'Use {prefetch_mode} prefetch dataloader')
-        if opt['datasets']['train'].get('pin_memory') is not True:
-            raise ValueError('Please set pin_memory=True for CUDAPrefetcher.')
-    else:
-        raise ValueError(f'Wrong prefetch_mode {prefetch_mode}.'
-                         "Supported ones are: None, 'cuda', 'cpu'.")
 
     # training
     logger.info(
@@ -220,26 +210,27 @@ def main():
 
     # for epoch in range(start_epoch, total_epochs + 1):
     epoch = start_epoch
+
+
     while current_iter <= total_iters:
         train_sampler.set_epoch(epoch)
-        prefetcher.reset()
-        train_data = prefetcher.next()
-
-        while train_data is not None:
+        
+        for train_data in train_loader:
             data_time = time.time() - data_time
 
             current_iter += 1
             if current_iter > total_iters:
                 break
+
             # update learning rate
             model.update_learning_rate(
-                current_iter, warmup_iter=opt['train'].get('warmup_iter', -1))
+                current_iter, warmup_iter=opt['train'].get('warmup_iter', -1)
+            )
+
             # training
-            model.feed_data(train_data, is_val=False)
-            result_code = model.optimize_parameters(current_iter, tb_logger)
-            # if result_code == -1 and tb_logger:
-            #     print('loss explode .. ')
-            #     exit(0)
+            model.feed_data(train_data)
+            result_code = model.optimize_parameters(current_iter)
+
             iter_time = time.time() - iter_time
             # log
             if current_iter % opt['logger']['print_freq'] == 0:
@@ -271,7 +262,9 @@ def main():
 
             data_time = time.time()
             iter_time = time.time()
-            train_data = prefetcher.next()
+
+
+            # train_data = prefetcher.next()
         # end of iter
         epoch += 1
 
@@ -295,5 +288,6 @@ def main():
 
 if __name__ == '__main__':
     import os
+    os.environ['CUDA_VISIBLE_DEVICES']='1'
     os.environ['GRPC_POLL_STRATEGY']='epoll1'
     main()

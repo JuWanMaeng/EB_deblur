@@ -29,8 +29,6 @@ def main():
     # create test dataset and dataloader
     test_loaders = []
     for phase, dataset_opt in sorted(opt['datasets'].items()):
-        if 'test' in phase:
-            dataset_opt['phase'] = 'test'
         test_set = create_dataset(dataset_opt)
         test_loader = create_dataloader(
             test_set,
@@ -47,18 +45,20 @@ def main():
     model = create_model(opt)
 
     for test_loader in test_loaders:
-        test_set_name = test_loader.dataset.opt['name']
+        test_set_name = opt['datasets']['val']['name']
         logger.info(f'Testing {test_set_name}...')
         rgb2bgr = opt['val'].get('rgb2bgr', True)
         # wheather use uint8 image to compute metrics
         use_image = opt['val'].get('use_image', True)
-        model.validation(
+        results = model.validation(
             test_loader,
             current_iter=opt['name'],
             tb_logger=None,
             save_img=opt['val']['save_img'],
             rgb2bgr=rgb2bgr, use_image=use_image)
-
+        print(results)
 
 if __name__ == '__main__':
+    import os
+    os.environ['CUDA_VISIBLE_DEVICES'] = '2'
     main()
