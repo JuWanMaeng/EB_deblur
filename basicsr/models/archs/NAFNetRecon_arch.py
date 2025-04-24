@@ -1,8 +1,46 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from basicsr.models.archs.arch_util import LayerNorm2d
-from basicsr.models.archs.local_arch import Local_Base
+
+
+class LayerNormFunction(torch.autograd.Function):
+
+    @staticmethod
+    def forward(ctx, x, weight, bias, eps):
+        ctx.eps = eps
+        N, C, H, W = x.size()
+        mu = x.mean(1, keepdim=True)
+        var = (x - mu).pow(2).mean(1, keepdim=True)
+        y = (x - mu) / (var + eps).sqrt()
+        ctx.save_for_backward(y, var, weight)
+        y = weight.view(1, C, 1, 1) * y + bias.view(1, C, 1, 1)
+        return y
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        eps = ctx.eps
+
+        N, C, H, W = grad_output.size()
+        y, var, weight = ctx.saved_variables
+        g = grad_output * weight.view(1, C, 1, 1)
+        mean_g = g.mean(dim=1, keepdim=True)
+
+        mean_gy = (g * y).mean(dim=1, keepdim=True)
+        gx = 1. / torch.sqrt(var + eps) * (g - y * mean_gy - mean_g)
+        return gx, (grad_output * y).sum(dim=3).sum(dim=2).sum(dim=0), grad_output.sum(dim=3).sum(dim=2).sum(
+            dim=0), None
+
+class LayerNorm2d(nn.Module):
+
+    def __init__(self, channels, eps=1e-6):
+        super(LayerNorm2d, self).__init__()
+        self.register_parameter('weight', nn.Parameter(torch.ones(channels)))
+        self.register_parameter('bias', nn.Parameter(torch.zeros(channels)))
+        self.eps = eps
+
+    def forward(self, x):
+        return LayerNormFunction.apply(x, self.weight, self.bias, self.eps)
+
 
 class SimpleGate(nn.Module):
     def forward(self, x):
@@ -56,7 +94,7 @@ class NAFBlock(nn.Module):
         return y + x * self.gamma
 
 class NAFNetRecon(nn.Module):
-    def __init__(self, img_channel=6, width=64, middle_blk_num=1, enc_blk_nums=[], dec_blk_nums=[]):
+    def __init__(self, img_channel=6, width=16, middle_blk_num=1, enc_blk_nums=[], dec_blk_nums=[],latent_dim=8):
         """
         Args:
             img_channel: 입력 이미지 채널 수
@@ -91,8 +129,8 @@ class NAFNetRecon(nn.Module):
         self.middle_decoder = nn.Sequential(*[NAFBlock(chan) for _ in range(half_middle)])
         
         # latent 변환 모듈 추가: encoder에서 나온 latent를 64채널로 줄이고, decoder에 넣기 전에 복원
-        self.latent_to_8 = nn.Conv2d(chan, 128, kernel_size=1, stride=1, bias=True)
-        self.latent_from_8 = nn.Conv2d(128, chan, kernel_size=1, stride=1, bias=True)
+        self.latent_to_8 = nn.Conv2d(chan, latent_dim, kernel_size=1, stride=1, bias=True)
+        self.latent_from_8 = nn.Conv2d(latent_dim, chan, kernel_size=1, stride=1, bias=True)
 
         self.ups = nn.ModuleList()
         self.decoders = nn.ModuleList()
@@ -122,11 +160,11 @@ class NAFNetRecon(nn.Module):
             x = down(x)
 
         latent = self.middle_encoder(x)
-        # latent을 64채널로 변환
+        # latent을 128채널로 변환
         latent = self.latent_to_8(latent)
-        return latent, (H, W)
+        return latent
 
-    def decode(self, latent, orig_size):
+    def decode(self, latent):
         """Decoder 부분: latent 복원, middle_decoder, upsampling 및 최종 복원.
            입력 이미지(inp)는 사용하지 않습니다."""
         # latent를 다시 원래 채널 수로 복원하여 middle_decoder에 넣음
@@ -137,12 +175,13 @@ class NAFNetRecon(nn.Module):
             x = up(x)
             x = decoder(x)
         x = self.ending(x)
-        H, W = orig_size
-        return x[:, :, :H, :W]
+
+        return x
 
     def forward(self, y):
-        latent, orig_size = self.encode(y)
-        return self.decode(latent, orig_size)
+        latent = self.encode(y)
+        out = self.decode(latent)
+        return out
 
     def check_image_size(self, x):
         _, _, h, w = x.size()

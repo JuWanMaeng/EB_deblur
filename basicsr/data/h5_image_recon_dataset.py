@@ -101,7 +101,13 @@ class H5ImageReconDataset(data.Dataset):
         self.transforms={}
         self.mean = opt['mean'] if 'mean' in opt else None
         self.std = opt['std'] if 'std' in opt else None
-        self.threshold = 0.01
+
+
+        # noise augmentation
+        self.use_noise_aug = self.opt.get('use_noise_aug', False)
+        self.noise_aug_prob = self.opt.get('noise_aug_prob', 0.5)  # 50%
+        self.noise_aug_max_ratio = self.opt.get('noise_aug_max_ratio', 0.2)
+
 
 
         if self.opt['norm_voxel'] is not None:
@@ -203,6 +209,13 @@ class H5ImageReconDataset(data.Dataset):
             if self.vox_transform:
                 random.seed(seed)
                 voxel = self.vox_transform(voxel)
+
+            if self.use_noise_aug and random.random() < self.noise_aug_prob:
+                a = random.uniform(0.0, self.noise_aug_max_ratio)  # 최대 0.2까지 노이즈 비율
+                noise = torch.randn_like(voxel)
+                voxel = (1 - a) * voxel + a * noise
+                voxel = torch.clamp(voxel, -1.0, 1.0)
+
         return voxel
     
     def transform_gen_event(self, voxel, seed):

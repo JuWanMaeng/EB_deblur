@@ -1,8 +1,8 @@
 # general settings
-name: NAFNet_recon_8
-model_type: EventReconModel
+name: NAFNet_recon_adapter
+model_type: EventAdapterModel
 scale: 1
-num_gpu:  2
+num_gpu:  1
 manual_seed: 10
 
 datasets:
@@ -35,9 +35,6 @@ datasets:
     num_worker_per_gpu: 2
     batch_size_per_gpu: 16 # 4 for 2080, 8 for titan
 
-    use_noise_aug : false
-    noise_aug_prob: 0.2
-    noise_aug_max_ratio: 0.1
 
 
   val:
@@ -64,7 +61,7 @@ dataset_name: GoPro
 
 # network structures
 network_g:
-  type: NAFNetRecon
+  type: NAFNetReconAdapter
   width: 64
   enc_blk_nums: [1, 1, 1]
   middle_blk_num: 28
@@ -72,9 +69,10 @@ network_g:
 
 # path
 path:
-  pretrain_network_g: ~
+  pretrain_network_g: /workspace/Marigold/checkpoint/NAF_VAE_128.pth
   strict_load_g: true
   resume_state: ~
+  sd_vae_path: /workspace/Marigold/checkpoint/stable-diffusion-2/vae
 
 # training settings
 train:
@@ -99,14 +97,10 @@ train:
     loss_weight: 1
     reduction: mean
 
-  # kl_opt:
-  #   type: KLLoss
-  #   loss_weight: 0.01
-  #   reduction: mean
 
 # validation settings
 val:
-  val_freq: !!float 10000
+  val_freq: !!float 1
   save_img: false
 
 
@@ -117,7 +111,7 @@ val:
 # logging settings
 logger:
   print_freq: 1000
-  save_checkpoint_freq: !!float 10000
+  save_checkpoint_freq: !!float 5000
   use_tb_logger: true
   wandb:
     project: ~

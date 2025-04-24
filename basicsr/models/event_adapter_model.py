@@ -1,37 +1,49 @@
 import importlib
 import torch
+import torch.nn as nn
+import torch.nn.functional as F
 from collections import OrderedDict
 from copy import deepcopy
 from os import path as osp
 from tqdm import tqdm
-import torch.nn.functional as F
 import os, wandb
 import numpy as np
 
 from basicsr.models.archs import define_network
 from basicsr.models.base_model import BaseModel
 from basicsr.utils import get_root_logger, imwrite, tensor2img
+from diffusers import AutoencoderKL
 
 loss_module = importlib.import_module('basicsr.models.losses')
 metric_module = importlib.import_module('basicsr.metrics')
 
 
-class EventReconModel(BaseModel):
-    """Base Event-based deblur model for single image deblur."""
+
+class EventAdapterModel(BaseModel):
+    """Base Event-based deblur model with Domain Adapter training."""
 
     def __init__(self, opt):
-        super(EventReconModel, self).__init__(opt)
+        super().__init__(opt)
 
-        # define network
+        self.rgb_latent_scale_factor = 0.18215
+        # define main VAE network (event VAE)
         self.net_g = define_network(deepcopy(opt['network_g']))
         self.net_g = self.model_to_device(self.net_g)
         self.print_network(self.net_g)
 
-        # load pretrained models
-        load_path = self.opt['path'].get('pretrain_network_g', None)
-        if load_path is not None:
-            self.load_network(self.net_g, load_path,
-                              self.opt['path'].get('strict_load_g', True), param_key=self.opt['path'].get('param_key', 'params'))
+
+        # load pretrained VAE weights (excluding adapter)
+        pretrain_path = opt['path'].get('pretrain_network_g', None)
+        if pretrain_path:
+            ckpt = torch.load(pretrain_path, map_location=self.device)
+            # drop adapter.* keys if present
+            state = {k: v for k, v in ckpt['params'].items() if not k.startswith('adapter.')}
+            self.net_g.load_state_dict(state, strict=False)
+
+        # load SDv2 VAE for target latent
+        self.sd_vae = AutoencoderKL.from_pretrained(opt['path']['sd_vae_path'])
+        self.sd_vae = self.sd_vae.to(self.device).eval()
+        for p in self.sd_vae.parameters(): p.requires_grad = False
 
         if self.is_train:
             self.init_training_settings()
@@ -39,7 +51,7 @@ class EventReconModel(BaseModel):
         if 'train' in opt['datasets']:
             local_rank = os.environ.get('LOCAL_RANK', '0')
             if local_rank == '0':
-                wandb.init(project='AE-training')
+                wandb.init(project='Adapter')
                 wandb.run.name = self.opt['name']
             self.wandb = True
         else:
@@ -48,8 +60,7 @@ class EventReconModel(BaseModel):
     def init_training_settings(self):
         self.net_g.train()
         train_opt = self.opt['train']
-
-        # define losses
+        # define pixel loss if any
         if train_opt.get('pixel_opt'):
             self.pixel_type = train_opt['pixel_opt'].pop('type')
             # print('LOSS: pixel_type:{}'.format(self.pixel_type))
@@ -59,18 +70,6 @@ class EventReconModel(BaseModel):
                 self.device)
         else:
             self.cri_pix = None
-
-        if train_opt.get('kl_opt'):
-            self.kl_type = train_opt['kl_opt'].pop('type')
-            cri_kl_cls = getattr(loss_module,self.kl_type)
-            self.cri_kl = cri_kl_cls(**train_opt['kl_opt']).to(
-                self.device)
-            self.cri_kl_weight = train_opt['kl_opt'].pop('loss_weight')
-        else:
-            self.cri_kl = None
-    
-
-        # set up optimizers and schedulers
         self.setup_optimizers()
         self.setup_schedulers()
 
@@ -88,9 +87,8 @@ class EventReconModel(BaseModel):
             else:
                 logger = get_root_logger()
                 logger.warning(f'Params {k} will not be optimized.')
-        # print(optim_params)
-        ratio = 0.1
 
+        ratio = 0.1
         optim_type = train_opt['optim_g'].pop('type')
 
         if optim_type == 'Adam':
@@ -105,49 +103,24 @@ class EventReconModel(BaseModel):
                 {'params': optim_params_lowlr, 'lr': train_opt['optim_g']['lr'] * ratio}],
                 **train_opt['optim_g']
             )
-        elif optim_type == 'SGD':
-            self.optimizer_g = torch.optim.SGD(
-                [{'params': optim_params},
-                {'params': optim_params_lowlr, 'lr': train_opt['optim_g']['lr'] * ratio}],
-                **train_opt['optim_g']
-            )
-        elif optim_type == 'RMSprop':
-            self.optimizer_g = torch.optim.RMSprop(
-                [{'params': optim_params},
-                {'params': optim_params_lowlr, 'lr': train_opt['optim_g']['lr'] * ratio}],
-                    **train_opt['optim_g']
-                )
-        elif optim_type == 'Adagrad':
-            self.optimizer_g = torch.optim.Adagrad(
-                [{'params': optim_params},
-                {'params': optim_params_lowlr, 'lr': train_opt['optim_g']['lr'] * ratio}],
-                **train_opt['optim_g']
-            )
-        elif optim_type == 'Adamax':
-            self.optimizer_g = torch.optim.Adamax(
-                [{'params': optim_params},
-                {'params': optim_params_lowlr, 'lr': train_opt['optim_g']['lr'] * ratio}],
-            **train_opt['optim_g']
-            )
-        else:
-            raise NotImplementedError(f"Optimizer {optim_type} is not implemented")
-
         self.optimizers.append(self.optimizer_g)
 
     def feed_data(self, data):
-
         self.event = data['voxel'].to(self.device)
 
 
     def optimize_parameters(self, current_iter):
-        self.optimizer_g.zero_grad()
+        # zero grad
+        loss_dict = OrderedDict()
 
-        # 네트워크의 forward 결과에서 reconstruction (fmap), mu, logvar를 받습니다.
-        # preds, mu, logvar = self.net_g(self.event)
-        preds = self.net_g(self.event)
-        if not isinstance(preds, list):
-            preds = [preds]
-        self.output = preds[-1]
+        self.optimizer_g.zero_grad()
+        # forward through event VAE to get latent
+        z_evt = self.net_g.encode(self.event)
+        # map to SD latent
+        z_pred = self.net_g.map_to_sd_latent(z_evt)
+        # get target SD latent
+        with torch.no_grad():
+            event_latent = self.encode_sd_event(self.event)
 
         l_total = 0
         loss_dict = OrderedDict()
@@ -155,21 +128,11 @@ class EventReconModel(BaseModel):
         # 1. Pixel loss 계산
         if self.cri_pix:
             l_pix = 0.
-            if self.pixel_type == 'PSNRLoss':
-                for pred in preds:
-                    l_pix += self.cri_pix(pred, self.event)
-            else:
-                for pred in preds:
-                    l_pix += self.cri_pix(pred, self.event)
+            l_pix += self.cri_pix(z_pred, event_latent)
             l_total += l_pix
             loss_dict['l_pix'] = l_pix
 
-
-        # kl_loss = self.cri_kl(mu, logvar)
-        # l_total += kl_loss
-
-        # loss_dict['l_kl'] = kl_loss
-
+        # backward and step
         l_total.backward()
 
         use_grad_clip = self.opt['train'].get('use_grad_clip', True)
@@ -327,3 +290,27 @@ class EventReconModel(BaseModel):
     def save(self, epoch, current_iter):
         self.save_network(self.net_g, 'net_g', current_iter)
         self.save_training_state(epoch, current_iter)
+
+
+    def encode_sd_event(self, six_event):
+
+        event_1 = six_event[:, 0:3, :, :]
+        event_2 = six_event[:, 3:, :, :]
+
+        # encode
+        h_1 = self.sd_vae.encoder(event_1)
+        moments_1 = self.sd_vae.quant_conv(h_1)
+        mean_1, logvar = torch.chunk(moments_1, 2, dim=1)
+        # scale latent
+        event_latent_1 = mean_1 * self.rgb_latent_scale_factor
+
+        h_2 = self.sd_vae.encoder(event_2)
+        moments_2 = self.sd_vae.quant_conv(h_2)
+        mean_2, logvar = torch.chunk(moments_2, 2, dim=1)
+        # scale latent
+        event_latent_2 = mean_2 * self.rgb_latent_scale_factor
+
+        event_latent = torch.cat([event_latent_1,event_latent_2], dim = 1)
+
+        return event_latent
+    
