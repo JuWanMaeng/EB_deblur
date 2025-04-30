@@ -1,5 +1,5 @@
 # general settings
-name: EB_NAFNet_fft11
+name: EB_NAFNet_NAFVAE_64
 model_type: ImageEventRestorationModel
 scale: 1
 num_gpu:  2
@@ -38,14 +38,14 @@ network_g:
 
 # path
 path:
-  pretrain_network_g: /workspace/FFTformer/pretrain_model/EB_NAFNET_FFT11.pth
+  pretrain_network_g: /workspace/data/FFTformer/experiments/EB_NAFNet_NAFVAE_64/models/net_g_160000.pth
   strict_load_g: true
   resume_state: ~
   root: /workspace/FFTformer  # set this option ONLY in TEST!!!
 
 # validation settings
 val:
-  save_img: false
+  save_img: true
   grids: ~
   crop_size: ~
   rgb2bgr: false # to my h5 data, its false

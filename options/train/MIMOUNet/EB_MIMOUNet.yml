@@ -1,5 +1,4 @@
-# general settings
-name: EB_NAFNet_NAFVAE_64_64_noNorm
+name: EB_MIMOUNetPlus
 model_type: ImageEventRestorationModel
 scale: 1
 num_gpu:  4
@@ -99,7 +98,7 @@ train:
 
 # validation settings
 val:
-  val_freq: !!float 5000
+  val_freq: !!float 10000
   save_img: false
 
 
@@ -116,7 +115,7 @@ val:
 # logging settings
 logger:
   print_freq: 1000
-  save_checkpoint_freq: !!float 5000
+  save_checkpoint_freq: !!float 10000
   use_tb_logger: true
   wandb:
     project: ~

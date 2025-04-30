@@ -32,8 +32,8 @@ def main():
     parser = argparse.ArgumentParser(description='Single Image Motion Deblurring using Restormer')
 
     parser.add_argument('--result_dir', default='./results/HIDE', type=str, help='Directory for results')
-    parser.add_argument('--weights', default='/workspace/data/FFTformer/experiments/EB_NAFNet_dit_threshold/models/net_g_280000.pth', type=str, help='Path to weights')
-    parser.add_argument('--dataset', default='EBNAFNet_dit', type=str, help='Test Dataset') # ['GoPro', 'HIDE', 'RealBlur_J', 'RealBlur_R']
+    parser.add_argument('--weights', default='/workspace/data/FFTformer/experiments/EB_NAFNet_NAFVAE_64/models/net_g_160000.pth', type=str, help='Path to weights')
+    parser.add_argument('--dataset', default='NAFNet_NAFVAE', type=str, help='Test Dataset') # ['GoPro', 'HIDE', 'RealBlur_J', 'RealBlur_R']
 
     args = parser.parse_args()
 
@@ -73,7 +73,7 @@ def main():
 
     
     files = []
-    with open('/workspace/FFTformer/datasets/event_gen/HIDE.txt', 'r') as file:
+    with open('/workspace/FFTformer/datasets/event_gen/HIDE_NAFVAE.txt', 'r') as file:
         for line in file:
             files.append(line.strip())
     print(len(files))
@@ -96,9 +96,9 @@ def main():
             splits = file_.split('/')
             img_name = splits[-1]
             if splits[5] == 'test-close-ups':
-                sharp_path = file_.replace('/test/test-close-ups','/GT')
+                sharp_path = file_.replace('/test_NAFVAE/test-close-ups','/GT')
             else:
-                sharp_path = file_.replace('test/test-long-shot','GT')
+                sharp_path = file_.replace('test_NAFVAE/test-long-shot','GT')
             sharp_img = np.float32(utils.load_img(sharp_path))/255.
 
 
@@ -108,11 +108,6 @@ def main():
             # event = event / max_val
 
             event = torch.from_numpy(event.transpose(2,0,1)).unsqueeze(0).float().cuda()
-
-            threshold = 0.05
-            # # 절대값이 threshold 이하인 값들을 0으로 설정
-            event[torch.abs(event) <= threshold] = 0
-
 
             input_ = torch.cat([input_tensor,event],dim=1)
 

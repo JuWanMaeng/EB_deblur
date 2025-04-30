@@ -423,7 +423,7 @@ class NAFNet_cross(nn.Module):
 
         self.img_intro = nn.Conv2d(in_channels=img_channel, out_channels=width, kernel_size=3, padding=1, stride=1,groups=1,
                                bias=True)
-        self.flow_intro = nn.Conv2d(in_channels=img_channel, out_channels=width, kernel_size=3, padding=1, stride=1, groups=1,
+        self.flow_intro = nn.Conv2d(in_channels=6, out_channels=width, kernel_size=3, padding=1, stride=1, groups=1,
                               bias=True)
         
         self.ending = nn.Conv2d(in_channels=width, out_channels=img_channel, kernel_size=3, padding=1, stride=1,
@@ -504,8 +504,6 @@ class NAFNet_cross(nn.Module):
 
         x = self.ending(x)
         x = x + inp
-
-        x = torch.clamp(x, 0.0, 1.0)
 
         return x[:, :, :H, :W]
 

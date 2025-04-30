@@ -1,5 +1,5 @@
 # general settings
-name: EB_FFTformer_refined_0.005
+name: EB_NAFNet_NAFVAE_64
 model_type: ImageEventRestorationModel
 scale: 1
 num_gpu: 1 # set num_gpu: 0 for cpu mode
