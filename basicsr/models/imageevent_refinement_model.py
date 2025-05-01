@@ -38,7 +38,7 @@ class ImageEventRefinementModel(BaseModel):
             local_rank = os.environ.get('LOCAL_RANK', '0')
             if local_rank == '0':
                 wandb.init(project='promptir')
-                wandb.run.name = '(NAF)Event refinement'
+                wandb.run.name = opt['name']
             self.wandb = True
         else:
             self.wandb = False
@@ -128,9 +128,9 @@ class ImageEventRefinementModel(BaseModel):
         self.gen_event = data['gen_event'].to(self.device) # input  # original voxel
         self.lq = data['frame'].to(self.device)  # GT
 
-        self.gt = data['frame_gt'].to(self.device)
+        # self.gt = data['frame_gt'].to(self.device)
  
-        # self.voxel=data['voxel'].to(self.device) # GT
+        self.voxel=data['voxel'].to(self.device) # GT
 
         # self.input = torch.cat([self.gen_event, self.lq], dim=1)
         self.input = torch.cat([self.lq, self.gen_event], dim=1)
@@ -168,14 +168,24 @@ class ImageEventRefinementModel(BaseModel):
 
             if self.pixel_type == 'PSNRLoss':
                 for pred in preds:
-                    l_pix += self.cri_pix(self.output, self.gen_event)
+                    l_pix += self.cri_pix(self.output, self.voxel)
             
             else:
                 for pred in preds:
-                    l_pix += self.cri_pix(self.output, self.gen_event)    
+                    l_pix += self.cri_pix(self.output, self.voxel)    
 
             l_total += l_pix
             loss_dict['l_pix'] = l_pix
+
+        # 2) output-L0 regularization (continuous proxy)
+        # l0_weight = 0.01   # 하이퍼파라미터
+        # eps = 1e-4
+        # if l0_weight > 0:
+        #     # y^2/(y^2+eps) ∈ [0,1], 0에 가까울수록 0, 클수록 1
+        #     l0_proxy = torch.mean(self.output**2 / (self.output**2 + eps))
+        #     l_l0 = l0_weight * l0_proxy
+        #     l_total += l_l0
+        #     loss_dict['l_l0'] = l_l0
 
 
         l_total = l_total + 0 * sum(p.sum() for p in self.net_g.parameters())
@@ -199,7 +209,7 @@ class ImageEventRefinementModel(BaseModel):
     def test(self):
         self.net_g.eval()
         with torch.no_grad():
-            n = self.lq.size(0)  # n: batch size
+            n = self.input.size(0)  # n: batch size
             outs = []
             m = self.opt['val'].get('max_minibatch', n)  # m is the minibatch, equals to batch size or mini batch size
             i = 0
@@ -209,10 +219,10 @@ class ImageEventRefinementModel(BaseModel):
                 if j >= n:
                     j = n
 
-                    b, c, h, w = self.lq[i:j].shape
+                    b, c, h, w = self.input[i:j].shape
                     h_n = (32 - h % 32) % 32
                     w_n = (32 - w % 32) % 32
-                    in_tensor = F.pad(self.lq[i:j], (0, w_n, 0, h_n), mode='reflect')
+                    in_tensor = F.pad(self.input[i:j], (0, w_n, 0, h_n), mode='reflect')
             
                     pred = self.net_g(in_tensor)
                     # pred = self.net_g(x = self.lq[i:j, :, :, :], event = self.voxel[i:j, :, :, :])  # mini batch all in 

@@ -87,7 +87,7 @@ class NAFNet(nn.Module):
 
         self.intro = nn.Conv2d(in_channels=9, out_channels=width, kernel_size=3, padding=1, stride=1, groups=1,
                               bias=True)
-        self.ending = nn.Conv2d(in_channels=width, out_channels=img_channel, kernel_size=3, padding=1, stride=1, groups=1,
+        self.ending = nn.Conv2d(in_channels=width, out_channels=6, kernel_size=3, padding=1, stride=1, groups=1,
                               bias=True)
 
         self.encoders = nn.ModuleList()
@@ -129,8 +129,37 @@ class NAFNet(nn.Module):
 
         self.padder_size = 2 ** len(self.encoders)
 
+    # def forward(self, inp):  # without skip connection
+    #     B, C, H, W = inp.shape
+    #     inp_pad = self.check_image_size(inp)
+
+    #     # intro
+    #     x = self.intro(inp_pad)
+
+    #     # encoder
+    #     for encoder, down in zip(self.encoders, self.downs):
+    #         x = encoder(x)
+    #         x = down(x)
+
+    #     # middle
+    #     x = self.middle_blks(x)
+
+    #     # decoder (skip 연결 제거)
+    #     for decoder, up in zip(self.decoders, self.ups):
+    #         x = up(x)
+    #         x = decoder(x)
+
+    #     # ending (글로벌 skip 제거)
+    #     x = self.ending(x)
+
+    #     # 잘라내기
+    #     return x[:, :, :H, :W]
+
+
     def forward(self, inp):
         B, C, H, W = inp.shape
+        gen_event = inp[:,3:,:,:]
+
         inp = self.check_image_size(inp)
 
         x = self.intro(inp)
@@ -150,7 +179,7 @@ class NAFNet(nn.Module):
             x = decoder(x)
 
         x = self.ending(x)
-        x = x + inp
+        x = x + gen_event
 
         return x[:, :, :H, :W]
 
