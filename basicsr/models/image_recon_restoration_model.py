@@ -5,7 +5,7 @@ from copy import deepcopy
 from os import path as osp
 from tqdm import tqdm
 import torch.nn.functional as F
-import os, wandb
+import os, wandb, random
 
 from basicsr.models.archs import define_network
 from basicsr.models.base_model import BaseModel
@@ -16,7 +16,7 @@ metric_module = importlib.import_module('basicsr.metrics')
 
 
 class ImageReconRestorationModel(BaseModel):
-    """Base Event-based deblur model for single image deblur."""
+    """NAF VAE(decoder) + Deblur joint train"""
 
     def __init__(self, opt):
         super(ImageReconRestorationModel, self).__init__(opt)
@@ -55,13 +55,17 @@ class ImageReconRestorationModel(BaseModel):
         self.net_g.train()
         self.NAFVAE.train()
 
+        vae = (self.NAFVAE.module 
+            if isinstance(self.NAFVAE, torch.nn.parallel.DistributedDataParallel) 
+            else self.NAFVAE)
+
         # 2) freeze 할 encoder 모듈들
         encoder_modules = [
-            self.NAFVAE.intro,
-            *self.NAFVAE.encoders,     # encoder stage
-            *self.NAFVAE.downs,        # 다운샘플링
-            self.NAFVAE.middle_encoder,
-            self.NAFVAE.latent_to_8,   # latent 변환 앞부분
+            vae.intro,
+            *vae.encoders,     # encoder stage
+            *vae.downs,        # 다운샘플링
+            vae.middle_encoder,
+            vae.latent_to_8,   # latent 변환 앞부분
         ]
         for m in encoder_modules:
             for p in m.parameters():
@@ -69,11 +73,11 @@ class ImageReconRestorationModel(BaseModel):
 
         # 3) trainable 할 decoder 모듈들
         decoder_modules = [
-            self.NAFVAE.latent_from_8,
-            self.NAFVAE.middle_decoder,
-            *self.NAFVAE.ups,
-            *self.NAFVAE.decoders,
-            self.NAFVAE.ending,
+            vae.latent_from_8,
+            vae.middle_decoder,
+            *vae.ups,
+            *vae.decoders,
+            vae.ending,
         ]
         for m in decoder_modules:
             for p in m.parameters():
@@ -101,7 +105,7 @@ class ImageReconRestorationModel(BaseModel):
         self.setup_schedulers()
 
     def setup_optimizers(self):
-        from copy import deepcopy
+        
         train_opt = self.opt['train']
         optim_cfg = deepcopy(train_opt['optim_g'])
         optim_type = optim_cfg.pop('type')
@@ -130,7 +134,7 @@ class ImageReconRestorationModel(BaseModel):
         #    - NAFVAE decoder at base_lr / 10
         param_groups = [
             {'params': net_g_params,    'lr': base_lr},
-            {'params': nafvae_params,   'lr': base_lr * 0.1}
+            {'params': nafvae_params,   'lr': base_lr}
         ]
 
         # 4) Instantiate optimizer
@@ -148,8 +152,8 @@ class ImageReconRestorationModel(BaseModel):
         self.lq = data['frame'].to(self.device)
         self.lq = self.lq.float()
 
-        if 'frame_gt' in data:
-            self.gt = data['frame_gt'].to(self.device)
+        self.gt = data['frame_gt'].to(self.device)
+        self.latent = data['gen_event'].to(self.device)
 
     def transpose(self, t, trans_idx):
         # print('transpose jt .. ', t.size())
@@ -164,85 +168,86 @@ class ImageReconRestorationModel(BaseModel):
             t = torch.flip(t, [3])
         return t
 
-
     def optimize_parameters(self, current_iter):
         self.optimizer_g.zero_grad()
 
+        # 1) DDP wrapper 벗기기
+        vae = self.NAFVAE.module if hasattr(self.NAFVAE, 'module') else self.NAFVAE
 
-        preds = self.net_g(self.lq)
+        # 2) latent → event 디코딩
+        event = vae.decode(self.latent)  # now uses the bare model's decode()
 
+        # 3) net_g forward
+        input_tensor = torch.cat([self.lq, event], dim=1)
+        preds = self.net_g(input_tensor)
         if not isinstance(preds, list):
             preds = [preds]
-
         self.output = preds[-1]
 
+        # 4) loss 계산
         l_total = 0
         loss_dict = OrderedDict()
-        # pixel loss
         if self.cri_pix:
-            l_pix = 0.
-
+            l_pix = 0.0
             if self.pixel_type == 'PSNRATLoss':
                 l_pix += self.cri_pix(*preds, self.gt)
-
-            elif self.pixel_type == 'PSNRLoss':
-                for pred in preds:
-                    l_pix += self.cri_pix(pred, self.gt)
-            
             else:
-                for pred in preds:
-                    l_pix += self.cri_pix(pred, self.gt)    
-
+                for p in preds:
+                    l_pix += self.cri_pix(p, self.gt)
             l_total += l_pix
             loss_dict['l_pix'] = l_pix
 
-        # fft loss
-        if self.cri_fft:
-            l_fft = self.cri_fft(preds[-1], self.gt)
-            l_total += l_fft
-            loss_dict['l_fft'] = l_fft         
-
-        
-
-
-        l_total = l_total + 0 * sum(p.sum() for p in self.net_g.parameters())
-
+        # 5) backward
         l_total.backward()
 
-        use_grad_clip = self.opt['train'].get('use_grad_clip', True)
-        if use_grad_clip:
-            torch.nn.utils.clip_grad_norm_(self.net_g.parameters(), 0.01)
+        # 6) gradient clipping (net_g + vae.decoder)
+        if self.opt['train'].get('use_grad_clip', True):
+            params = list(self.net_g.parameters()) + list(vae.parameters())
+            torch.nn.utils.clip_grad_norm_(params, max_norm=0.01)
+
+        # 7) optimizer step
         self.optimizer_g.step()
 
-
+        # 8) logging
         self.log_dict = self.reduce_loss_dict(loss_dict)
+        if current_iter % 10 == 0 and os.environ.get('LOCAL_RANK', '0') == '0':
+            wandb.log({'train_loss': loss_dict['l_pix'].item(), 'iter': current_iter})
 
-        if current_iter % 10 ==0:
-            local_rank = os.environ.get('LOCAL_RANK', '0')
-            if local_rank == '0':
-                wandb.log({'train_loss': loss_dict['l_pix'].item(), 'iter':current_iter})
 
     def test(self):
+        # 1) eval 모드 진입
         self.net_g.eval()
-        with torch.no_grad():
-            n = self.lq.size(0)  # n: batch size
-            outs = []
-            m = self.opt['val'].get('max_minibatch', n)  # m is the minibatch, equals to batch size or mini batch size
-            i = 0
-            while i < n:
-                j = i + m
-                if j >= n:
-                    j = n
+        self.NAFVAE.eval()
 
-                pred = self.net_g(self.lq[i:j, :, :, :])  # mini batch all in 
-            
+        with torch.no_grad():
+            n = self.lq.size(0)
+            outs = []
+            m = self.opt['val'].get('max_minibatch', n)
+            i = 0
+
+            # 2) 전체 배치에 대해 한 번만 decode
+            full_event = self.NAFVAE.decode(self.latent)  # -> [B, 6, H, W]
+
+            # 3) mini-batch inference
+            while i < n:
+                j = min(i + m, n)
+
+                lq_mb    = self.lq[i:j]           # [mb, 3, H, W]
+                event_mb = full_event[i:j]        # [mb, 6, H, W]
+                inp_mb   = torch.cat([lq_mb, event_mb], dim=1)  # [mb, 9, H, W]
+
+                pred = self.net_g(inp_mb)
                 if isinstance(pred, list):
                     pred = pred[-1]
                 outs.append(pred)
                 i = j
 
-            self.output = torch.cat(outs, dim=0)  # all mini batch cat in dim0
+            # 4) 출력 결합
+            self.output = torch.cat(outs, dim=0)
+
+        # 5) train 모드 복귀
         self.net_g.train()
+        self.NAFVAE.train()
 
     def single_image_inference(self, img, voxel, save_path):
         self.feed_data(data={'frame': img.unsqueeze(dim=0), 'voxel': voxel.unsqueeze(dim=0)})
@@ -288,14 +293,7 @@ class ImageReconRestorationModel(BaseModel):
 
             img_name = '{:06d}'.format(cnt)
 
-
-            lq = val_data['frame']
-            event = val_data['gen_event']
-
-
-            lq = torch.cat([lq,event],dim=(1))
-            val_data['frame'] = lq
-            
+        
             self.feed_data(val_data)
             if self.opt['val'].get('grids') is not None:
                 self.grids()
@@ -403,5 +401,9 @@ class ImageReconRestorationModel(BaseModel):
         return out_dict
 
     def save(self, epoch, current_iter):
+        # 1) Deblur network 저장
         self.save_network(self.net_g, 'net_g', current_iter)
+        # 2) NAFVAE decoder network 저장
+        self.save_network(self.NAFVAE, 'NAFVAE', current_iter)
+        # 3) 학습 상태 저장 (optimizer, scheduler 등)
         self.save_training_state(epoch, current_iter)

@@ -2,13 +2,13 @@
 name: NAFVAE_EB_NAFNet
 model_type: ImageReconRestorationModel
 scale: 1
-num_gpu:  1
+num_gpu:  4
 manual_seed: 10
 
 datasets:
   train:
     name: gopro-h5-train
-    type: H5ImageDataset
+    type: H5ImageReconRestorationDataset
 
     # dataroot: ./datasets/GoPro_scer/train
     dataroot: /workspace/data/GOPRO/train
@@ -26,13 +26,13 @@ datasets:
     io_backend:
       type: h5
 
-    crop_size: 256
+    crop_size: ~
     use_flip: true
     use_rot: true
 
     # data loader settings
     use_shuffle: true
-    num_worker_per_gpu: 1
+    num_worker_per_gpu: 2
     batch_size_per_gpu: 8 # 4 for 2080, 8 for titan
 
     # diff_weight: 0.3
@@ -40,7 +40,7 @@ datasets:
 
   val:
     name: gopro-h5-test
-    type: H5ImageDataset
+    type: H5ImageReconRestorationDataset
 
     # dataroot: ./datasets/test
     dataroot: /workspace/data/GOPRO/test
@@ -80,14 +80,14 @@ path:
   pretrain_network_g: ~
   strict_load_g: true
   resume_state: ~
-  pretrain_network_NAFVAE: ~
+  pretrain_network_NAFVAE: /workspace/FFTformer/pretrain_model/NAFVAE/NAF_VAE_8.pth
   strict_load_NAFVAE: true
 
 # training settings
 train:
   optim_g:
     type: AdamW
-    lr: !!float 1e-3
+    lr: !!float 1e-4
     weight_decay: !!float 1e-3
     betas: [0.9, 0.9]
 
