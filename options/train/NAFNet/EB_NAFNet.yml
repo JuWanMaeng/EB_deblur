@@ -1,5 +1,5 @@
 # general settings
-name: EB_NAFNet_NAFVAE_64_64_noNorm
+name: EB_NAFNet_1280
 model_type: ImageEventRestorationModel
 scale: 1
 num_gpu:  4
