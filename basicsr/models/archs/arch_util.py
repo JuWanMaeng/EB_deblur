@@ -357,9 +357,9 @@ class EdgeAwareSharpening_ChannelAttentionTransformerBlock(nn.Module):
         self.norm1_event = LayerNorm(dim, LayerNorm_type)
         self.attn = Mutual_Attention(dim, num_heads, bias)
         # mlp
-#         self.norm2 = nn.LayerNorm(dim)
-#         mlp_hidden_dim = int(dim * ffn_expansion_factor)
-#         self.ffn = Mlp(in_features=dim, hidden_features=mlp_hidden_dim, act_layer=nn.GELU, drop=0.)
+        self.norm2 = nn.LayerNorm(dim)
+        mlp_hidden_dim = int(dim * ffn_expansion_factor)
+        self.ffn = Mlp(in_features=dim, hidden_features=mlp_hidden_dim, act_layer=nn.GELU, drop=0.)
 
     def forward(self, image_edge, event):
         # image_edge: b, c, h, w
@@ -370,41 +370,71 @@ class EdgeAwareSharpening_ChannelAttentionTransformerBlock(nn.Module):
         fused = image_edge + self.attn(self.norm1_image_edge(image_edge), self.norm1_event(event)) # b, c, h, w
 
 #         # mlp
-#         fused = to_3d(fused) # b, h*w, c
-#         fused = fused + self.ffn(self.norm2(fused))
-#         fused = to_4d(fused, h, w)
+        fused = to_3d(fused) # b, h*w, c
+        fused = fused + self.ffn(self.norm2(fused))
+        fused = to_4d(fused, h, w)
 
         return fused
 
 
 ##########################################################################
 ## Motion-driven Scale-adaptive Deblurring module
-class MotionDrivenScaleAdaptiveDeblurring_ChannelAttentionTransformerBlock(nn.Module):
-    def __init__(self, dim, num_heads, ffn_expansion_factor=2, bias=False, LayerNorm_type='WithBias'):
-        super(MotionDrivenScaleAdaptiveDeblurring_ChannelAttentionTransformerBlock, self).__init__()
+# class MotionDrivenScaleAdaptiveDeblurring_ChannelAttentionTransformerBlock(nn.Module):
+#     def __init__(self, dim, num_heads, ffn_expansion_factor=2, bias=False, LayerNorm_type='WithBias'):
+#         super(MotionDrivenScaleAdaptiveDeblurring_ChannelAttentionTransformerBlock, self).__init__()
 
-        self.norm1_motion = LayerNorm(dim, LayerNorm_type)
-        self.norm1_event = LayerNorm(dim, LayerNorm_type)
-        self.attn = Mutual_Attention(dim, num_heads, bias)
-        self.conv = nn.Conv2d(dim, 18, kernel_size=3, padding=1, bias=True)
-#         # mlp
+#         self.norm1_motion = LayerNorm(dim, LayerNorm_type)
+#         self.norm1_event = LayerNorm(dim, LayerNorm_type)
+#         self.attn = Mutual_Attention(dim, num_heads, bias)
+#         self.conv = nn.Conv2d(dim, 18, kernel_size=3, padding=1, bias=True)
+# #         # mlp
 #         self.norm2 = nn.LayerNorm(dim)
 #         mlp_hidden_dim = int(dim * ffn_expansion_factor)
 #         self.ffn = Mlp(in_features=dim, hidden_features=mlp_hidden_dim, act_layer=nn.GELU, drop=0.)
 
-    def forward(self, motion, event):
-        # motion: b, c, h, w
-        # event: b, c, h, w
-        # return: b, c, h, w
-        assert motion.shape == event.shape, 'the shape of image doesnt equal to event'
-        b, c , h, w = motion.shape
-        offset = self.conv(self.attn(self.norm1_motion(motion), self.norm1_event(event))) # b, c, h, w
+#     def forward(self, motion, event):
+#         # motion: b, c, h, w
+#         # event: b, c, h, w
+#         # return: b, c, h, w
+#         assert motion.shape == event.shape, 'the shape of image doesnt equal to event'
+#         b, c , h, w = motion.shape
+#         offset = self.conv(self.attn(self.norm1_motion(motion), self.norm1_event(event))) # b, c, h, w
 
-#         # mlp
+# #         # mlp
 #         fused = to_3d(fused) # b, h*w, c
 #         fused = fused + self.ffn(self.norm2(fused))
 #         fused = to_4d(fused, h, w)
 
+#         return offset
+
+class MotionDrivenScaleAdaptiveDeblurring_ChannelAttentionTransformerBlock(nn.Module):
+    def __init__(self, dim, num_heads, ffn_expansion_factor=2, bias=False, LayerNorm_type='WithBias'):
+        super().__init__()
+        self.norm1_motion = LayerNorm(dim, LayerNorm_type)
+        self.norm1_event  = LayerNorm(dim, LayerNorm_type)
+        self.attn         = Mutual_Attention(dim, num_heads, bias)
+
+        # offset 예측용 conv (2 * kH * kW 채널을 뽑아야 함)
+        self.conv_offset  = nn.Conv2d(dim, 18, kernel_size=3, padding=1, bias=True)
+        
+        self.norm2 = nn.LayerNorm(dim)
+        mlp_hidden = int(dim * ffn_expansion_factor)
+        self.ffn   = Mlp(dim, mlp_hidden, dim, act_layer=nn.GELU, drop=0.)
+
+    def forward(self, motion, event):
+        # motion, event: [B, C, H, W]
+        assert motion.shape == event.shape, "the shape of image doesnt equal to event"
+        b, c, h, w = motion.shape
+
+        # cross‐attention
+        feat = self.attn(self.norm1_motion(motion), self.norm1_event(event))  # [B, C, H, W]
+
+        flat = to_3d(feat)                                  # [B, H*W, C]
+        flat = flat + self.ffn(self.norm2(flat))            # Residual MLP
+        feat = to_4d(flat, h, w)                            # [B, C, H, W]
+
+        # offset 예측
+        offset = self.conv_offset(feat)                     # [B, 2*kH*kW, H, W]
         return offset
 
 

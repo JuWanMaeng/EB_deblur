@@ -1,5 +1,5 @@
 # general settings
-name: EFNet_genevent
+name: EFNet_Sep_genevent
 model_type: ImageEventRestorationModel
 scale: 1
 num_gpu:  2
@@ -60,7 +60,7 @@ dataset_name: GoPro
 
 # network structures
 network_g:
-  type: EFNet
+  type: EFNetSEP
   wf: 64 
   fuse_before_downsample: true
 
@@ -124,4 +124,4 @@ logger:
 # dist training settings
 dist_params:
   backend: nccl
-  port: 29502
+  port: 29500

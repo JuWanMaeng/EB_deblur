@@ -97,7 +97,7 @@ class H5ImageDataset(data.Dataset):
         """
         if self.h5_file is None:
             self.h5_file = h5py.File(self.data_path, 'r')
-        return self.h5_file['refined']['image{:09d}'.format(index)][:]
+        return self.h5_file['gen_event']['image{:09d}'.format(index)][:]
 
 
     def __init__(self, opt, data_path, return_voxel=True, return_frame=True, return_gt_frame=True,
@@ -117,12 +117,11 @@ class H5ImageDataset(data.Dataset):
         self.return_voxel = opt.get('return_voxel', return_voxel)
         self.return_mask = opt.get('return_mask', return_mask)
         
-        self.norm_voxel = norm_voxel # -MAX~MAX -> -1 ~ 1 
+        self.norm_voxel = False # -MAX~MAX -> -1 ~ 1 
         self.h5_file = None
         self.transforms={}
         self.mean = opt['mean'] if 'mean' in opt else None
         self.std = opt['std'] if 'std' in opt else None
-        self.threshold = 0.01
 
 
         if self.opt['norm_voxel'] is not None:
@@ -171,23 +170,13 @@ class H5ImageDataset(data.Dataset):
         seed = random.randint(0, 2 ** 32) if seed is None else seed
         item={}
         frame = self.get_frame(index)
+        frame = self.transform_frame(frame, seed, transpose_to_CHW=False)  # to tensor
+
         if self.return_gt_frame:
             frame_gt = self.get_gt_frame(index)
             frame_gt = self.transform_frame(frame_gt, seed, transpose_to_CHW=False)
-        if index < 0 or index >= self.__len__():
-            raise IndexError
-        seed = random.randint(0, 2 ** 32) if seed is None else seed
-        item={}
-        frame = self.get_frame(index)
-    
-        frame = self.transform_frame(frame, seed, transpose_to_CHW=False)  # to tensor
+
         gen_event = self.get_gen_event(index)  
-        # gen_event = np.concatenate((gen_event[:1, :, :], gen_event[2:, :, :]), axis=0)
-
-        # gen_event[np.abs(gen_event) < self.threshold] = 0
-        # gen_event = gen_event.transpose(1,2,0)
-
-
 
         voxel = self.get_voxel(index)
         voxel = self.transform_voxel(voxel,seed,transpose_to_CHW=False)
@@ -206,14 +195,11 @@ class H5ImageDataset(data.Dataset):
         if self.return_gt_frame:
             item['frame_gt'] = frame_gt
         item['voxel'] = voxel
-        
-            
         item['seq'] = self.seq_name
         item['path'] = os.path.join(self.seq_name, 'image{:06d}'.format(index))
 
 
         return item
-
 
 
     def __len__(self):
@@ -269,7 +255,8 @@ class H5ImageDataset(data.Dataset):
         
         # normalize voxel to [-1,1]
         # max_val = torch.max(torch.abs(voxel))
-        # voxel = voxel / max_val
+        # if max_val > 0:  # Avoid division by zero
+        #     voxel = voxel / max_val
 
         if self.vox_transform:
             random.seed(seed)
@@ -306,5 +293,3 @@ class H5ImageDataset(data.Dataset):
             except:
                 collated_events[k] = default_collate(collated_events[k])
         return collated_events
-    
-

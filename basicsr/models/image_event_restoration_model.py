@@ -39,7 +39,7 @@ class ImageEventRestorationModel(BaseModel):
             local_rank = os.environ.get('LOCAL_RANK', '0')
             if local_rank == '0':
                 wandb.init(project='promptir')
-                wandb.run.name = '(NAF)EB_NAFNet_refined'
+                wandb.run.name = opt['name']
             self.wandb = True
         else:
             self.wandb = False
@@ -113,30 +113,6 @@ class ImageEventRestorationModel(BaseModel):
                 {'params': optim_params_lowlr, 'lr': train_opt['optim_g']['lr'] * ratio}],
                 **train_opt['optim_g']
             )
-        elif optim_type == 'SGD':
-            self.optimizer_g = torch.optim.SGD(
-                [{'params': optim_params},
-                {'params': optim_params_lowlr, 'lr': train_opt['optim_g']['lr'] * ratio}],
-                **train_opt['optim_g']
-            )
-        elif optim_type == 'RMSprop':
-            self.optimizer_g = torch.optim.RMSprop(
-                [{'params': optim_params},
-                {'params': optim_params_lowlr, 'lr': train_opt['optim_g']['lr'] * ratio}],
-                    **train_opt['optim_g']
-                )
-        elif optim_type == 'Adagrad':
-            self.optimizer_g = torch.optim.Adagrad(
-                [{'params': optim_params},
-                {'params': optim_params_lowlr, 'lr': train_opt['optim_g']['lr'] * ratio}],
-                **train_opt['optim_g']
-            )
-        elif optim_type == 'Adamax':
-            self.optimizer_g = torch.optim.Adamax(
-                [{'params': optim_params},
-                {'params': optim_params_lowlr, 'lr': train_opt['optim_g']['lr'] * ratio}],
-            **train_opt['optim_g']
-            )
         else:
             raise NotImplementedError(f"Optimizer {optim_type} is not implemented")
 
@@ -154,19 +130,6 @@ class ImageEventRestorationModel(BaseModel):
         
         if 'gen_event' in data:
             self.gen_event = data['gen_event'].to(self.device)
-
-    def transpose(self, t, trans_idx):
-        # print('transpose jt .. ', t.size())
-        if trans_idx >= 4:
-            t = torch.flip(t, [3])
-        return torch.rot90(t, trans_idx % 4, [2, 3])
-
-    def transpose_inverse(self, t, trans_idx):
-        # print( 'inverse transpose .. t', t.size())
-        t = torch.rot90(t, 4 - trans_idx % 4, [2, 3])
-        if trans_idx >= 4:
-            t = torch.flip(t, [3])
-        return t
 
 
     def optimize_parameters(self, current_iter):
@@ -191,9 +154,6 @@ class ImageEventRestorationModel(BaseModel):
             if self.pixel_type == 'PSNRATLoss':
                 l_pix += self.cri_pix(*preds, self.gt)
 
-            # elif self.pixel_type == 'PSNRGateLoss':
-            #     for pred in preds:
-            #         l_pix += self.cri_pix(pred, self.gt, self.mask)
 
             elif self.pixel_type == 'PSNRLoss':
                 for pred in preds:
@@ -206,13 +166,6 @@ class ImageEventRestorationModel(BaseModel):
             l_total += l_pix
             loss_dict['l_pix'] = l_pix
 
-        # fft loss
-        if self.cri_fft:
-            l_fft = self.cri_fft(preds[-1], self.gt)
-            l_total += l_fft
-            loss_dict['l_fft'] = l_fft         
-
-        
 
 
         l_total = l_total + 0 * sum(p.sum() for p in self.net_g.parameters())

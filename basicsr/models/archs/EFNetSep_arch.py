@@ -46,9 +46,9 @@ class SAM(nn.Module):
         x1 = x1+x
         return x1, img
 
-class EFNet(nn.Module):
-    def __init__(self, in_chn=3, ev_chn=8, wf=64, depth=3, fuse_before_downsample=True, relu_slope=0.2, num_heads=[1,2,4]):
-        super(EFNet, self).__init__()
+class EFNetSEP(nn.Module):
+    def __init__(self, in_chn=3, ev_chn=6, wf=64, depth=3, fuse_before_downsample=True, relu_slope=0.2, num_heads=[1,2,4]):
+        super(EFNetSEP, self).__init__()
         self.depth = depth
         self.fuse_before_downsample = fuse_before_downsample
         self.num_heads = num_heads
@@ -88,29 +88,11 @@ class EFNet(nn.Module):
         self.last = conv3x3(prev_channels, in_chn, bias=True)
 
     def forward(self, x, event, mask=None):
-        '''
-        JINJIN CHECK image:::: torch.Size([8, 3, 256, 256])
-        JINJIN CHECK event:::: torch.Size([8, 6, 256, 256])
-        JINJIN CHECK edge:::: torch.Size([8, 2, 256, 256])
-        JINJIN CHECK motion:::: torch.Size([8, 2, 256, 256])
-        JINJIN CHECK image:::: torch.Size([8, 3, 256, 256])
-        JINJIN CHECK event:::: torch.Size([8, 6, 256, 256])
-        JINJIN CHECK edge:::: torch.Size([8, 2, 256, 256])
-        JINJIN CHECK motion:::: torch.Size([8, 2, 256, 256])
-        JINJIN CHECK image:::: torch.Size([8, 3, 256, 256])
-        JINJIN CHECK event:::: torch.Size([8, 6, 256, 256])
-        JINJIN CHECK edge:::: torch.Size([8, 2, 256, 256])
-        JINJIN CHECK motion:::: torch.Size([8, 2, 256, 256])
-        JINJIN CHECK image:::: torch.Size([8, 3, 256, 256])
-        JINJIN CHECK event:::: torch.Size([8, 6, 256, 256])
-        JINJIN CHECK edge:::: torch.Size([8, 2, 256, 256])
-        JINJIN CHECK motion:::: torch.Size([8, 2, 256, 256])
-        '''
         image = x
 #         print("JINJIN CHECK image::::", image.shape)
 #         print("JINJIN CHECK event::::", event.shape)  #JINJIN CHECK:::: torch.Size([8, 6, 256, 256])
-        event_ev6channel = torch.cat((event[:, :2, :, :], event[:, 4:, :, :]), dim=1)
-        edge = torch.cat([event_ev6channel[:,3,:,:].unsqueeze(1), event_ev6channel[:,4,:,:].unsqueeze(1)], dim=1)
+        event_ev6channel = event
+        edge = torch.cat([event_ev6channel[:,2,:,:].unsqueeze(1), event_ev6channel[:,3,:,:].unsqueeze(1)], dim=1)
 #         print("JINJIN CHECK edge::::", edge.shape)
         motion = torch.cat([event_ev6channel[:,0,:,:].unsqueeze(1), event_ev6channel[:,-1,:,:].unsqueeze(1)], dim=1)
 #         print("JINJIN CHECK motion::::", motion.shape)
