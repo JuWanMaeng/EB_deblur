@@ -109,15 +109,15 @@ class EFNet(nn.Module):
         image = x
 #         print("JINJIN CHECK image::::", image.shape)
 #         print("JINJIN CHECK event::::", event.shape)  #JINJIN CHECK:::: torch.Size([8, 6, 256, 256])
-        event_ev8channel = torch.cat((event[:, :4, :, :], event[:, 5:, :, :]), dim=1)
-        edge = torch.cat([event_ev8channel[:,3,:,:].unsqueeze(1), event_ev8channel[:,4,:,:].unsqueeze(1)], dim=1)
+        event_ev6channel = torch.cat((event[:, :2, :, :], event[:, 4:, :, :]), dim=1)
+        edge = torch.cat([event_ev6channel[:,3,:,:].unsqueeze(1), event_ev6channel[:,4,:,:].unsqueeze(1)], dim=1)
 #         print("JINJIN CHECK edge::::", edge.shape)
-        motion = torch.cat([event_ev8channel[:,0,:,:].unsqueeze(1), event_ev8channel[:,-1,:,:].unsqueeze(1)], dim=1)
+        motion = torch.cat([event_ev6channel[:,0,:,:].unsqueeze(1), event_ev6channel[:,-1,:,:].unsqueeze(1)], dim=1)
 #         print("JINJIN CHECK motion::::", motion.shape)
 
         ev = []
         #EVencoder
-        e1 = self.conv_ev1(event_ev8channel)
+        e1 = self.conv_ev1(event_ev6channel)
         for i, down in enumerate(self.down_path_ev):
             if i < self.depth-1:
                 e1, e1_up = down(e1, self.fuse_before_downsample)
