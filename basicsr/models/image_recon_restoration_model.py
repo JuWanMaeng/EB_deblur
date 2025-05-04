@@ -226,7 +226,8 @@ class ImageReconRestorationModel(BaseModel):
             i = 0
 
             # 2) 전체 배치에 대해 한 번만 decode
-            full_event = self.NAFVAE.decode(self.latent)  # -> [B, 6, H, W]
+            vae = self.get_bare_model(self.NAFVAE)
+            full_event = vae.decode(self.latent)
 
             # 3) mini-batch inference
             while i < n:
