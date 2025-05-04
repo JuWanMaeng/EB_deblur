@@ -4,25 +4,12 @@ from torch import nn as nn
 from torch.nn import functional as F
 from torch.nn import init as init
 from torch.nn.modules.batchnorm import _BatchNorm
-from einops import rearrange
-import numbers
 
 from basicsr.utils import get_root_logger
 
-# try:
-#     from basicsr.models.ops.dcn import (ModulatedDeformConvPack,
-#                                         modulated_deform_conv)
-# except ImportError:
-#     # print('Cannot import dcn. Ignore this warning if dcn is not used. '
-#     #       'Otherwise install BasicSR with compiling dcn.')
-#
-
-def to_3d(x):
-    return rearrange(x, 'b c h w -> b (h w) c')
-
-
-def to_4d(x, h, w):
-    return rearrange(x, 'b (h w) c -> b c h w', h=h, w=w)
+from einops import rearrange
+import numbers
+from timm.models.layers import DropPath, trunc_normal_, to_2tuple
 
 @torch.no_grad()
 def default_init_weights(module_list, scale=1, bias_fill=0, **kwargs):
@@ -235,45 +222,14 @@ def pixel_unshuffle(x, scale):
     x_view = x.view(b, c, h, scale, w, scale)
     return x_view.permute(0, 1, 3, 5, 2, 4).reshape(b, out_channel, h, w)
 
+##########################################################################
+## Layer Norm
 
-class LayerNormFunction(torch.autograd.Function):
+def to_3d(x):
+    return rearrange(x, 'b c h w -> b (h w) c')
 
-    @staticmethod
-    def forward(ctx, x, weight, bias, eps):
-        ctx.eps = eps
-        N, C, H, W = x.size()
-        mu = x.mean(1, keepdim=True)
-        var = (x - mu).pow(2).mean(1, keepdim=True)
-        y = (x - mu) / (var + eps).sqrt()
-        ctx.save_for_backward(y, var, weight)
-        y = weight.view(1, C, 1, 1) * y + bias.view(1, C, 1, 1)
-        return y
-
-    @staticmethod
-    def backward(ctx, grad_output):
-        eps = ctx.eps
-
-        N, C, H, W = grad_output.size()
-        y, var, weight = ctx.saved_variables
-        g = grad_output * weight.view(1, C, 1, 1)
-        mean_g = g.mean(dim=1, keepdim=True)
-
-        mean_gy = (g * y).mean(dim=1, keepdim=True)
-        gx = 1. / torch.sqrt(var + eps) * (g - y * mean_gy - mean_g)
-        return gx, (grad_output * y).sum(dim=3).sum(dim=2).sum(dim=0), grad_output.sum(dim=3).sum(dim=2).sum(
-            dim=0), None
-
-class LayerNorm2d(nn.Module):
-
-    def __init__(self, channels, eps=1e-6):
-        super(LayerNorm2d, self).__init__()
-        self.register_parameter('weight', nn.Parameter(torch.ones(channels)))
-        self.register_parameter('bias', nn.Parameter(torch.zeros(channels)))
-        self.eps = eps
-
-    def forward(self, x):
-        return LayerNormFunction.apply(x, self.weight, self.bias, self.eps)
-
+def to_4d(x,h,w):
+    return rearrange(x, 'b (h w) c -> b c h w',h=h,w=w)
 
 class BiasFree_LayerNorm(nn.Module):
     def __init__(self, normalized_shape):
@@ -289,8 +245,7 @@ class BiasFree_LayerNorm(nn.Module):
 
     def forward(self, x):
         sigma = x.var(-1, keepdim=True, unbiased=False)
-        return x / torch.sqrt(sigma + 1e-5) * self.weight
-
+        return x / torch.sqrt(sigma+1e-5) * self.weight
 
 class WithBias_LayerNorm(nn.Module):
     def __init__(self, normalized_shape):
@@ -308,13 +263,13 @@ class WithBias_LayerNorm(nn.Module):
     def forward(self, x):
         mu = x.mean(-1, keepdim=True)
         sigma = x.var(-1, keepdim=True, unbiased=False)
-        return (x - mu) / torch.sqrt(sigma + 1e-5) * self.weight + self.bias
+        return (x - mu) / torch.sqrt(sigma+1e-5) * self.weight + self.bias
 
 
 class LayerNorm(nn.Module):
     def __init__(self, dim, LayerNorm_type):
         super(LayerNorm, self).__init__()
-        if LayerNorm_type == 'BiasFree':
+        if LayerNorm_type =='BiasFree':
             self.body = BiasFree_LayerNorm(dim)
         else:
             self.body = WithBias_LayerNorm(dim)
@@ -360,35 +315,10 @@ class Mutual_Attention(nn.Module):
         out = rearrange(out, 'b head c (h w) -> b (head c) h w', head=self.num_heads, h=h, w=w)
         out = self.project_out(out)
         return out
-    
-class FlowImage_ChannelAttentionTransformerBlock(nn.Module):
-    def __init__(self, dim, num_heads, ffn_expansion_factor=2, bias=False, LayerNorm_type='WithBias'):
-        super(FlowImage_ChannelAttentionTransformerBlock, self).__init__()
-        # self.conv1_flow = nn.Conv2d(flow_dim, dim, kernel_size=1, bias=bias)
 
-        self.norm1_image = LayerNorm(dim, LayerNorm_type)
-        self.norm1_flow = LayerNorm(dim, LayerNorm_type)
-        self.attn = Mutual_Attention(dim, num_heads, bias)
-        # mlp
-        self.norm2 = nn.LayerNorm(dim)
-        mlp_hidden_dim = int(dim * ffn_expansion_factor)
-        self.ffn = Mlp(in_features=dim, hidden_features=mlp_hidden_dim, act_layer=nn.GELU, drop=0.)
 
-    def forward(self, image, flow):
-        # image: b, c, h, w
-        # flow: b, c, h, w
-        # return: b, c, h, w
-        # flow = self.conv1_flow(flow)
-        assert image.shape == flow.shape, 'the shape of image doesnt equal to flow'
-        b, c , h, w = image.shape
-        fused = image + self.attn(self.norm1_image(image), self.norm1_flow(flow)) # b, c, h, w
-
-        # mlp
-        fused = to_3d(fused) # b, h*w, c
-        fused = fused + self.ffn(self.norm2(fused))
-        fused = to_4d(fused, h, w)
-
-        return fused
+##########################################################################
+## Event-Image Channel Attention (EICA)
 class EventImage_ChannelAttentionTransformerBlock(nn.Module):
     def __init__(self, dim, num_heads, ffn_expansion_factor=2, bias=False, LayerNorm_type='WithBias'):
         super(EventImage_ChannelAttentionTransformerBlock, self).__init__()
@@ -416,33 +346,66 @@ class EventImage_ChannelAttentionTransformerBlock(nn.Module):
 
         return fused
 
-class FlowEvent_ChannelAttentionTransformerBlock(nn.Module):
-    def __init__(self, dim, num_heads, ffn_expansion_factor=2, bias=False, LayerNorm_type='WithBias'):
-        super(FlowEvent_ChannelAttentionTransformerBlock, self).__init__()
 
-        self.norm1_flow = LayerNorm(dim, LayerNorm_type)
+##########################################################################
+## Edge-aware Sharpening module
+class EdgeAwareSharpening_ChannelAttentionTransformerBlock(nn.Module):
+    def __init__(self, dim, num_heads, ffn_expansion_factor=2, bias=False, LayerNorm_type='WithBias'):
+        super(EdgeAwareSharpening_ChannelAttentionTransformerBlock, self).__init__()
+
+        self.norm1_image_edge = LayerNorm(dim, LayerNorm_type)
         self.norm1_event = LayerNorm(dim, LayerNorm_type)
         self.attn = Mutual_Attention(dim, num_heads, bias)
         # mlp
-        self.norm2 = nn.LayerNorm(dim)
-        mlp_hidden_dim = int(dim * ffn_expansion_factor)
-        self.ffn = Mlp(in_features=dim, hidden_features=mlp_hidden_dim, act_layer=nn.GELU, drop=0.)
+#         self.norm2 = nn.LayerNorm(dim)
+#         mlp_hidden_dim = int(dim * ffn_expansion_factor)
+#         self.ffn = Mlp(in_features=dim, hidden_features=mlp_hidden_dim, act_layer=nn.GELU, drop=0.)
 
-    def forward(self, image, event, flow):
-        # flow: b, c, h, w
+    def forward(self, image_edge, event):
+        # image_edge: b, c, h, w
         # event: b, c, h, w
         # return: b, c, h, w
-        assert image.shape == flow.shape == event.shape, 'the shape of flow doesnt equal to event'
-        b, c , h, w = image.shape
-        fused = image + self.attn(self.norm1_flow(flow), self.norm1_event(event)) # b, c, h, w
+        assert image_edge.shape == event.shape, 'the shape of image_edge doesnt equal to event'
+        b, c , h, w = image_edge.shape
+        fused = image_edge + self.attn(self.norm1_image_edge(image_edge), self.norm1_event(event)) # b, c, h, w
 
-        # mlp
-        fused = to_3d(fused) # b, h*w, c
-        fused = fused + self.ffn(self.norm2(fused))
-        fused = to_4d(fused, h, w)
+#         # mlp
+#         fused = to_3d(fused) # b, h*w, c
+#         fused = fused + self.ffn(self.norm2(fused))
+#         fused = to_4d(fused, h, w)
 
         return fused
 
+
+##########################################################################
+## Motion-driven Scale-adaptive Deblurring module
+class MotionDrivenScaleAdaptiveDeblurring_ChannelAttentionTransformerBlock(nn.Module):
+    def __init__(self, dim, num_heads, ffn_expansion_factor=2, bias=False, LayerNorm_type='WithBias'):
+        super(MotionDrivenScaleAdaptiveDeblurring_ChannelAttentionTransformerBlock, self).__init__()
+
+        self.norm1_motion = LayerNorm(dim, LayerNorm_type)
+        self.norm1_event = LayerNorm(dim, LayerNorm_type)
+        self.attn = Mutual_Attention(dim, num_heads, bias)
+        self.conv = nn.Conv2d(dim, 18, kernel_size=3, padding=1, bias=True)
+#         # mlp
+#         self.norm2 = nn.LayerNorm(dim)
+#         mlp_hidden_dim = int(dim * ffn_expansion_factor)
+#         self.ffn = Mlp(in_features=dim, hidden_features=mlp_hidden_dim, act_layer=nn.GELU, drop=0.)
+
+    def forward(self, motion, event):
+        # motion: b, c, h, w
+        # event: b, c, h, w
+        # return: b, c, h, w
+        assert motion.shape == event.shape, 'the shape of image doesnt equal to event'
+        b, c , h, w = motion.shape
+        offset = self.conv(self.attn(self.norm1_motion(motion), self.norm1_event(event))) # b, c, h, w
+
+#         # mlp
+#         fused = to_3d(fused) # b, h*w, c
+#         fused = fused + self.ffn(self.norm2(fused))
+#         fused = to_4d(fused, h, w)
+
+        return offset
 
 
 class Mlp(nn.Module):
@@ -463,81 +426,52 @@ class Mlp(nn.Module):
         x = self.drop(x)
         return x
 
-##########################################################################
-## Multi-DConv Head Transposed Self-Attention (MDTA) 
-## https://github.com/va1shn9v/PromptIR/blob/main/net/model.py
+
 class Attention(nn.Module):
-    def __init__(self, dim, num_heads, bias):
-        super(Attention, self).__init__()
+    def __init__(self, dim, num_heads=8, qkv_bias=False, qk_scale=None, attn_drop=0., proj_drop=0., sr_ratio=1):
+        super().__init__()
+        assert dim % num_heads == 0, f"dim {dim} should be divided by num_heads {num_heads}."
+
+        self.dim = dim
         self.num_heads = num_heads
-        self.temperature = nn.Parameter(torch.ones(num_heads, 1, 1))
+        head_dim = dim // num_heads
+        self.scale = qk_scale or head_dim ** -0.5
 
-        self.qkv = nn.Conv2d(dim, dim*3, kernel_size=1, bias=bias)
-        self.qkv_dwconv = nn.Conv2d(dim*3, dim*3, kernel_size=3, stride=1, padding=1, groups=dim*3, bias=bias)
-        self.project_out = nn.Conv2d(dim, dim, kernel_size=1, bias=bias)
+        self.q = nn.Linear(dim, dim, bias=qkv_bias)
+        self.kv = nn.Linear(dim, dim * 2, bias=qkv_bias)
+        self.attn_drop = nn.Dropout(attn_drop)
+        self.proj = nn.Linear(dim, dim)
+        self.proj_drop = nn.Dropout(proj_drop)
 
+        self.sr_ratio = sr_ratio
+        if sr_ratio > 1:
+            self.sr = nn.Conv2d(dim, dim, kernel_size=sr_ratio, stride=sr_ratio)
+            self.norm = nn.LayerNorm(dim)
 
+    def forward(self, x, y, H=None, W=None):
+        # x: image
+        # y: event
+        assert x.dim()==3, x.shape
+        assert x.shape == y.shape
+        B, N, C = x.shape
+        q = self.q(x).reshape(B, N, self.num_heads, C // self.num_heads).permute(0, 2, 1, 3)
 
-    def forward(self, x):
-        b,c,h,w = x.shape
+        if self.sr_ratio > 1:
+            y_ = y.permute(0, 2, 1).reshape(B, C, H, W)
+            y_ = self.sr(y_).reshape(B, C, -1).permute(0, 2, 1)
+            y_ = self.norm(y_)
+            kv = self.kv(y_).reshape(B, -1, 2, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
+        else:
+            kv = self.kv(y).reshape(B, -1, 2, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
+        k, v = kv[0], kv[1]
 
-        qkv = self.qkv_dwconv(self.qkv(x))
-        q,k,v = qkv.chunk(3, dim=1)   
-
-        q = rearrange(q, 'b (head c) h w -> b head c (h w)', head=self.num_heads)
-        k = rearrange(k, 'b (head c) h w -> b head c (h w)', head=self.num_heads)
-        v = rearrange(v, 'b (head c) h w -> b head c (h w)', head=self.num_heads)
-
-        q = torch.nn.functional.normalize(q, dim=-1)
-        k = torch.nn.functional.normalize(k, dim=-1)
-
-        attn = (q @ k.transpose(-2, -1)) * self.temperature
+        attn = (q @ k.transpose(-2, -1)) * self.scale
         attn = attn.softmax(dim=-1)
+        attn = self.attn_drop(attn)
 
-        out = (attn @ v)
-
-        out = rearrange(out, 'b head c (h w) -> b (head c) h w', head=self.num_heads, h=h, w=w)
-
-        out = self.project_out(out)
-        return out
-
-##########################################################################
-## Gated-Dconv Feed-Forward Network (GDFN)
-## https://github.com/va1shn9v/PromptIR/blob/main/net/model.py
-class FeedForward(nn.Module):
-    def __init__(self, dim, ffn_expansion_factor, bias):
-        super(FeedForward, self).__init__()
-
-        hidden_features = int(dim*ffn_expansion_factor)
-
-        self.project_in = nn.Conv2d(dim, hidden_features*2, kernel_size=1, bias=bias)
-
-        self.dwconv = nn.Conv2d(hidden_features*2, hidden_features*2, kernel_size=3, stride=1, padding=1, groups=hidden_features*2, bias=bias)
-
-        self.project_out = nn.Conv2d(hidden_features, dim, kernel_size=1, bias=bias)
-
-    def forward(self, x):
-        x = self.project_in(x)
-        x1, x2 = self.dwconv(x).chunk(2, dim=1)
-        x = F.gelu(x1) * x2
-        x = self.project_out(x)
-        return x
-
-
-##########################################################################
-## Transformer Block
-## https://github.com/va1shn9v/PromptIR/blob/main/net/model.py
-class TransformerBlock(nn.Module):
-    def __init__(self, dim, num_heads, ffn_expansion_factor, bias, LayerNorm_type):
-        super(TransformerBlock, self).__init__()
-
-        self.norm1 = LayerNorm(dim, LayerNorm_type)
-        self.attn = Attention(dim, num_heads, bias)
-        self.norm2 = LayerNorm(dim, LayerNorm_type)
-        self.ffn = FeedForward(dim, ffn_expansion_factor, bias)
-
-    def forward(self, x):
-        x = x + self.attn(self.norm1(x))
-        x = x + self.ffn(self.norm2(x))
+        x = (attn @ v).transpose(1, 2).reshape(B, N, C)
+        x = self.proj(x)
+        x = self.proj_drop(x)
 
         return x
+
