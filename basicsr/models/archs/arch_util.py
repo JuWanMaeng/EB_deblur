@@ -9,13 +9,7 @@ import numbers
 
 from basicsr.utils import get_root_logger
 
-# try:
-#     from basicsr.models.ops.dcn import (ModulatedDeformConvPack,
-#                                         modulated_deform_conv)
-# except ImportError:
-#     # print('Cannot import dcn. Ignore this warning if dcn is not used. '
-#     #       'Otherwise install BasicSR with compiling dcn.')
-#
+
 
 def to_3d(x):
     return rearrange(x, 'b c h w -> b (h w) c')
@@ -361,34 +355,7 @@ class Mutual_Attention(nn.Module):
         out = self.project_out(out)
         return out
     
-class FlowImage_ChannelAttentionTransformerBlock(nn.Module):
-    def __init__(self, dim, num_heads, ffn_expansion_factor=2, bias=False, LayerNorm_type='WithBias'):
-        super(FlowImage_ChannelAttentionTransformerBlock, self).__init__()
-        # self.conv1_flow = nn.Conv2d(flow_dim, dim, kernel_size=1, bias=bias)
-
-        self.norm1_image = LayerNorm(dim, LayerNorm_type)
-        self.norm1_flow = LayerNorm(dim, LayerNorm_type)
-        self.attn = Mutual_Attention(dim, num_heads, bias)
-        # mlp
-        self.norm2 = nn.LayerNorm(dim)
-        mlp_hidden_dim = int(dim * ffn_expansion_factor)
-        self.ffn = Mlp(in_features=dim, hidden_features=mlp_hidden_dim, act_layer=nn.GELU, drop=0.)
-
-    def forward(self, image, flow):
-        # image: b, c, h, w
-        # flow: b, c, h, w
-        # return: b, c, h, w
-        # flow = self.conv1_flow(flow)
-        assert image.shape == flow.shape, 'the shape of image doesnt equal to flow'
-        b, c , h, w = image.shape
-        fused = image + self.attn(self.norm1_image(image), self.norm1_flow(flow)) # b, c, h, w
-
-        # mlp
-        fused = to_3d(fused) # b, h*w, c
-        fused = fused + self.ffn(self.norm2(fused))
-        fused = to_4d(fused, h, w)
-
-        return fused
+    
 class EventImage_ChannelAttentionTransformerBlock(nn.Module):
     def __init__(self, dim, num_heads, ffn_expansion_factor=2, bias=False, LayerNorm_type='WithBias'):
         super(EventImage_ChannelAttentionTransformerBlock, self).__init__()
@@ -416,11 +383,11 @@ class EventImage_ChannelAttentionTransformerBlock(nn.Module):
 
         return fused
 
-class FlowEvent_ChannelAttentionTransformerBlock(nn.Module):
+class EdgeAwareSharpening_ChannelAttentionTransformerBlock(nn.Module):
     def __init__(self, dim, num_heads, ffn_expansion_factor=2, bias=False, LayerNorm_type='WithBias'):
-        super(FlowEvent_ChannelAttentionTransformerBlock, self).__init__()
+        super(EdgeAwareSharpening_ChannelAttentionTransformerBlock, self).__init__()
 
-        self.norm1_flow = LayerNorm(dim, LayerNorm_type)
+        self.norm1_image_edge = LayerNorm(dim, LayerNorm_type)
         self.norm1_event = LayerNorm(dim, LayerNorm_type)
         self.attn = Mutual_Attention(dim, num_heads, bias)
         # mlp
@@ -428,22 +395,50 @@ class FlowEvent_ChannelAttentionTransformerBlock(nn.Module):
         mlp_hidden_dim = int(dim * ffn_expansion_factor)
         self.ffn = Mlp(in_features=dim, hidden_features=mlp_hidden_dim, act_layer=nn.GELU, drop=0.)
 
-    def forward(self, image, event, flow):
-        # flow: b, c, h, w
+    def forward(self, image_edge, event):
+        # image_edge: b, c, h, w
         # event: b, c, h, w
         # return: b, c, h, w
-        assert image.shape == flow.shape == event.shape, 'the shape of flow doesnt equal to event'
-        b, c , h, w = image.shape
-        fused = image + self.attn(self.norm1_flow(flow), self.norm1_event(event)) # b, c, h, w
+        assert image_edge.shape == event.shape, 'the shape of image_edge doesnt equal to event'
+        b, c , h, w = image_edge.shape
+        fused = image_edge + self.attn(self.norm1_image_edge(image_edge), self.norm1_event(event)) # b, c, h, w
 
-        # mlp
+#         # mlp
         fused = to_3d(fused) # b, h*w, c
         fused = fused + self.ffn(self.norm2(fused))
         fused = to_4d(fused, h, w)
 
         return fused
 
+class MotionDrivenScaleAdaptiveDeblurring_ChannelAttentionTransformerBlock(nn.Module):
+    def __init__(self, dim, num_heads, ffn_expansion_factor=2, bias=False, LayerNorm_type='WithBias'):
+        super().__init__()
+        self.norm1_motion = LayerNorm(dim, LayerNorm_type)
+        self.norm1_event  = LayerNorm(dim, LayerNorm_type)
+        self.attn         = Mutual_Attention(dim, num_heads, bias)
 
+        # offset 예측용 conv (2 * kH * kW 채널을 뽑아야 함)
+        self.conv_offset  = nn.Conv2d(dim, 18, kernel_size=3, padding=1, bias=True)
+        
+        self.norm2 = nn.LayerNorm(dim)
+        mlp_hidden = int(dim * ffn_expansion_factor)
+        self.ffn   = Mlp(dim, mlp_hidden, dim, act_layer=nn.GELU, drop=0.)
+
+    def forward(self, motion, event):
+        # motion, event: [B, C, H, W]
+        assert motion.shape == event.shape, "the shape of image doesnt equal to event"
+        b, c, h, w = motion.shape
+
+        # cross‐attention
+        feat = self.attn(self.norm1_motion(motion), self.norm1_event(event))  # [B, C, H, W]
+
+        flat = to_3d(feat)                                  # [B, H*W, C]
+        flat = flat + self.ffn(self.norm2(flat))            # Residual MLP
+        feat = to_4d(flat, h, w)                            # [B, C, H, W]
+
+        # offset 예측
+        offset = self.conv_offset(feat)                     # [B, 2*kH*kW, H, W]
+        return offset
 
 class Mlp(nn.Module):
     def __init__(self, in_features, hidden_features=None, out_features=None, act_layer=nn.GELU, drop=0.):

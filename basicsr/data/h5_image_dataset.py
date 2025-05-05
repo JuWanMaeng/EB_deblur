@@ -171,18 +171,13 @@ class H5ImageDataset(data.Dataset):
         seed = random.randint(0, 2 ** 32) if seed is None else seed
         item={}
         frame = self.get_frame(index)
+        frame = self.transform_frame(frame, seed, transpose_to_CHW=False)  # to tensor
+
         if self.return_gt_frame:
             frame_gt = self.get_gt_frame(index)
             frame_gt = self.transform_frame(frame_gt, seed, transpose_to_CHW=False)
-        if index < 0 or index >= self.__len__():
-            raise IndexError
-        seed = random.randint(0, 2 ** 32) if seed is None else seed
-        item={}
-        frame = self.get_frame(index)
-    
-        frame = self.transform_frame(frame, seed, transpose_to_CHW=False)  # to tensor
-        gen_event = self.get_gen_event(index)  
 
+        gen_event = self.get_gen_event(index)  
 
         voxel = self.get_voxel(index)
         voxel = self.transform_voxel(voxel,seed,transpose_to_CHW=False)

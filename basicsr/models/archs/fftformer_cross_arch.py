@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numbers
 from einops import rearrange
-from basicsr.models.archs.arch_util import LayerNorm, FlowImage_ChannelAttentionTransformerBlock
+from basicsr.models.archs.arch_util import LayerNorm
 # from .VAE_local import VAE
 
 

@@ -1,8 +1,8 @@
 '''
 EFNet
-@inproceedings{sun2022flow,
+@inproceedings{sun2022event,
       author = {Sun, Lei and Sakaridis, Christos and Liang, Jingyun and Jiang, Qi and Yang, Kailun and Sun, Peng and Ye, Yaozu and Wang, Kaiwei and Van Gool, Luc},
-      title = {flow-Based Fusion for Motion Deblurring with Cross-modal Attention},
+      title = {Event-Based Fusion for Motion Deblurring with Cross-modal Attention},
       booktitle = {European Conference on Computer Vision (ECCV)},
       year = 2022
       }
@@ -11,8 +11,10 @@ EFNet
 import torch
 import torch.nn as nn
 import math
-from basicsr.models.archs.arch_util import FlowImage_ChannelAttentionTransformerBlock
+from basicsr.models.archs.arch_util import EdgeAwareSharpening_ChannelAttentionTransformerBlock, MotionDrivenScaleAdaptiveDeblurring_ChannelAttentionTransformerBlock
 from torch.nn import functional as F
+from torchvision.ops import deform_conv2d
+
 
 def conv3x3(in_chn, out_chn, bias=True):
     layer = nn.Conv2d(in_chn, out_chn, kernel_size=3, stride=1, padding=1, bias=bias)
@@ -44,9 +46,9 @@ class SAM(nn.Module):
         x1 = x1+x
         return x1, img
 
-class EFNet(nn.Module):
-    def __init__(self, in_chn=3, ev_chn=3, wf=64, depth=3, fuse_before_downsample=True, relu_slope=0.2, num_heads=[1,2,4]):
-        super(EFNet, self).__init__()
+class EFNetSEP(nn.Module):
+    def __init__(self, in_chn=3, ev_chn=6, wf=64, depth=3, fuse_before_downsample=True, relu_slope=0.2, num_heads=[1,2,4]):
+        super(EFNetSEP, self).__init__()
         self.depth = depth
         self.fuse_before_downsample = fuse_before_downsample
         self.num_heads = num_heads
@@ -54,7 +56,7 @@ class EFNet(nn.Module):
         self.down_path_2 = nn.ModuleList()
         self.conv_01 = nn.Conv2d(in_chn, wf, 3, 1, 1)
         self.conv_02 = nn.Conv2d(in_chn, wf, 3, 1, 1)
-        # flow
+        # event
         self.down_path_ev = nn.ModuleList()
         self.conv_ev1 = nn.Conv2d(ev_chn, wf, 3, 1, 1)
 
@@ -62,7 +64,7 @@ class EFNet(nn.Module):
         for i in range(depth):
             downsample = True if (i+1) < depth else False 
 
-            self.down_path_1.append(UNetConvBlock(prev_channels, (2**i) * wf, downsample, relu_slope, num_heads=self.num_heads[i]))
+            self.down_path_1.append(UNetConvBlock(prev_channels, (2**i) * wf, downsample, relu_slope, stride_edgemotion=(2**i), num_heads=self.num_heads[i]))
             self.down_path_2.append(UNetConvBlock(prev_channels, (2**i) * wf, downsample, relu_slope, use_emgc=downsample))
             # ev encoder
             if i < self.depth:
@@ -85,15 +87,19 @@ class EFNet(nn.Module):
         self.cat12 = nn.Conv2d(prev_channels*2, prev_channels, 1, 1, 0)
         self.last = conv3x3(prev_channels, in_chn, bias=True)
 
-    def forward(self, x, mask=None):
-        if x.shape[1] != 3:
-            image = x[:,0:3,:,:]
-            flow = x[:,3:,:,:]
-
+    def forward(self, x, event, mask=None):
+        image = x
+#         print("JINJIN CHECK image::::", image.shape)
+#         print("JINJIN CHECK event::::", event.shape)  #JINJIN CHECK:::: torch.Size([8, 6, 256, 256])
+        event_ev6channel = event
+        edge = torch.cat([event_ev6channel[:,2,:,:].unsqueeze(1), event_ev6channel[:,3,:,:].unsqueeze(1)], dim=1)
+#         print("JINJIN CHECK edge::::", edge.shape)
+        motion = torch.cat([event_ev6channel[:,0,:,:].unsqueeze(1), event_ev6channel[:,-1,:,:].unsqueeze(1)], dim=1)
+#         print("JINJIN CHECK motion::::", motion.shape)
 
         ev = []
         #EVencoder
-        e1 = self.conv_ev1(flow)
+        e1 = self.conv_ev1(event_ev6channel)
         for i, down in enumerate(self.down_path_ev):
             if i < self.depth-1:
                 e1, e1_up = down(e1, self.fuse_before_downsample)
@@ -113,14 +119,14 @@ class EFNet(nn.Module):
         for i, down in enumerate(self.down_path_1):
             if (i+1) < self.depth:
 
-                x1, x1_up = down(x1, flow_filter=ev[i], merge_before_downsample=self.fuse_before_downsample)
+                x1, x1_up = down(x1, edge=edge, motion=motion, event_filter=ev[i], merge_before_downsample=self.fuse_before_downsample)
                 encs.append(x1_up)
 
                 if mask is not None:
                     masks.append(F.interpolate(mask, scale_factor = 0.5**i))
             
             else:
-                x1 = down(x1, flow_filter=ev[i], merge_before_downsample=self.fuse_before_downsample)
+                x1 = down(x1, edge=edge, motion=motion, event_filter=ev[i], merge_before_downsample=self.fuse_before_downsample)
 
 
         for i, up in enumerate(self.up_path_1):
@@ -135,9 +141,9 @@ class EFNet(nn.Module):
         for i, down in enumerate(self.down_path_2):
             if (i+1) < self.depth:
                 if mask is not None:
-                    x2, x2_up = down(x2, encs[i], decs[-i-1], mask=masks[i])
+                    x2, x2_up = down(x2, enc=encs[i], dec=decs[-i-1], mask=masks[i])
                 else:
-                    x2, x2_up = down(x2, encs[i], decs[-i-1])
+                    x2, x2_up = down(x2, enc=encs[i], dec=decs[-i-1])
                 blocks.append(x2_up)
             else:
                 x2 = down(x2)
@@ -163,7 +169,7 @@ class EFNet(nn.Module):
 
 
 class UNetConvBlock(nn.Module):
-    def __init__(self, in_size, out_size, downsample, relu_slope, use_emgc=False, num_heads=None): # cat
+    def __init__(self, in_size, out_size, downsample, relu_slope, stride_edgemotion=None, use_emgc=False, num_heads=None): # cat
         super(UNetConvBlock, self).__init__()
         self.downsample = downsample
         self.identity = nn.Conv2d(in_size, out_size, 1, 1, 0)
@@ -173,7 +179,7 @@ class UNetConvBlock(nn.Module):
         self.conv_1 = nn.Conv2d(in_size, out_size, kernel_size=3, padding=1, bias=True)
         self.relu_1 = nn.LeakyReLU(relu_slope, inplace=False)
         self.conv_2 = nn.Conv2d(out_size, out_size, kernel_size=3, padding=1, bias=True)
-        self.relu_2 = nn.LeakyReLU(relu_slope, inplace=False)        
+        self.relu_2 = nn.LeakyReLU(relu_slope, inplace=False)
 
         if downsample and use_emgc:
             self.emgc_enc = nn.Conv2d(out_size, out_size, 3, 1, 1)
@@ -185,10 +191,24 @@ class UNetConvBlock(nn.Module):
             self.downsample = conv_down(out_size, out_size, bias=False)
 
         if self.num_heads is not None:
-            self.image_flow_transformer = FlowImage_ChannelAttentionTransformerBlock(out_size, num_heads=self.num_heads, ffn_expansion_factor=4, bias=False, LayerNorm_type='WithBias')
+            self.conv_edge = nn.Conv2d(2, out_size, kernel_size=3, padding=1, stride=stride_edgemotion, bias=True)
+            self.conv_motion = nn.Conv2d(2, out_size, kernel_size=3, padding=1, stride=stride_edgemotion, bias=True)
+            
+            self.downsample_edge = conv_down(out_size, out_size, bias=False)
+            self.downsample_motion = conv_down(out_size, out_size, bias=False)
+
+            # 1x1 conv to reduce channel size after concatenation
+            self.conv1d = nn.Conv2d(out_size * 2, out_size, kernel_size=1)
+
+            #deformable convolutional layer 정의 필요
+            self.deform_weight = nn.Parameter(torch.empty(out_size, out_size, 3, 3))
+            nn.init.kaiming_uniform_(self.deform_weight, a=math.sqrt(5))
+            
+            self.image_edge_transformer = EdgeAwareSharpening_ChannelAttentionTransformerBlock(out_size, num_heads=self.num_heads, ffn_expansion_factor=4, bias=False, LayerNorm_type='WithBias')
+            self.image_motion_transformer = MotionDrivenScaleAdaptiveDeblurring_ChannelAttentionTransformerBlock(out_size, num_heads=self.num_heads, ffn_expansion_factor=4, bias=False, LayerNorm_type='WithBias')
         
 
-    def forward(self, x, enc=None, dec=None, mask=None, flow_filter=None, merge_before_downsample=True):
+    def forward(self, x, edge=None, motion=None, enc=None, dec=None, mask=None, event_filter=None, merge_before_downsample=True):
         out = self.conv_1(x)
 
         out_conv1 = self.relu_1(out)
@@ -202,14 +222,39 @@ class UNetConvBlock(nn.Module):
             out_dec = self.emgc_dec(dec) + self.emgc_dec_mask(mask*dec)
             out = out + out_enc + out_dec        
             
-        if flow_filter is not None and merge_before_downsample:
+        if event_filter is not None and merge_before_downsample:
             # b, c, h, w = out.shape
-            out = self.image_flow_transformer(out, flow_filter) 
+            out_edge = self.conv_edge(edge)
+            out_motion = self.conv_motion(motion)
+
+            out = self.image_edge_transformer(self.conv1d(torch.cat([out, out_edge], 1)), event_filter)
+            offset = self.image_motion_transformer(out_motion, event_filter)
+            #deformable convolutional layer forward passing
+            out = deform_conv2d(
+                input=out,
+                offset=offset,
+                weight=self.deform_weight,
+                bias=None,
+                padding=1
+            )
              
         if self.downsample:
             out_down = self.downsample(out)
-            if not merge_before_downsample: 
-                out_down = self.image_flow_transformer(out_down, flow_filter) 
+            
+            if not merge_before_downsample:
+                out_edge_down = self.downsample_edge(out_edge)
+                out_motion_down = self.downsample_motion(out_motion)
+#                 print("JINJIN CHECK22222:::::", out_down.shape, out_edge_down.shape)
+                out_down = self.image_edge_transformer(self.conv1d(torch.cat([out_down,out_edge_down],1)), event_filter)
+                offset = self.image_motion_transformer(out_down_motion, event_filter)
+                #deformable convolutional layer forward passing
+                out_down = deform_conv2d(
+                    input=out_down,
+                    offset=offset,
+                    weight=self.deform_weight,
+                    bias=None,
+                    padding=1
+                )
 
             return out_down, out
 
@@ -217,7 +262,18 @@ class UNetConvBlock(nn.Module):
             if merge_before_downsample:
                 return out
             else:
-                out = self.image_flow_transformer(out, flow_filter)
+#                 print("JINJIN CHECK33333:::::", out.shape, out_edge.shape)
+                out = self.image_edge_transformer(self.conv1d(torch.cat([out,out_edge], 1)), event_filter)
+                offset = self.image_motion_transformer(out_motion, event_filter)
+                #deformable convolutional layer forward passing
+                out = deform_conv2d(
+                    input=out,
+                    offset=offset,
+                    weight=self.deform_weight,
+                    bias=None,
+                    padding=1
+                )
+                return out
 
 
 class UNetEVConvBlock(nn.Module):
@@ -280,30 +336,39 @@ class UNetUpBlock(nn.Module):
         out = self.conv_block(out)
         return out
 
-
 if __name__ == "__main__":
-    # Set random seed for reproducibility
-    torch.manual_seed(0)
+    import os
+    os.environ['CUDA_VISIBLE_DEVICES'] = '2'
+    # Device setup
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-    # Define model parameters
-    inp_channels = 3  # Number of input channels for image (RGB)
-    flow_channels = 3  # Number of flow channels (u, v)
-    out_channels = 3  # Output channels
-    dim = 48  # Dimension of model
-    num_blocks = [6, 6, 12]  # Number of blocks at each level
-    num_refinement_blocks = 4  # Number of refinement blocks
-    ffn_expansion_factor = 3  # Feed-forward expansion factor
-    bias = False  # Bias flag
+    # Instantiate model and move to device
+    model = EFNetSEP(in_chn=3, ev_chn=6, wf=64, depth=3).to(device)
+    model.eval()
 
-    # Instantiate model
-    model = EFNet()
+    # Create dummy inputs
+    batch_size = 4
+    H, W = 256, 256
+    image = torch.randn(batch_size, 3, H, W, device=device)
+    # SCER events: 6-channel event representation
+    event = torch.randn(batch_size, 6, H, W, device=device)
 
-    # Dummy input: batch size 1, channels (3 for image + 2 for flow), 256x256 image resolution
-    dummy_input = torch.randn(1, inp_channels + flow_channels, 256, 256)
+    # Forward pass
+    try:
+        outputs = model(image, event)
+        if isinstance(outputs, (list, tuple)):
+            for i, out in enumerate(outputs):
+                print(f"Output {i} shape: {out.shape}")
+        else:
+            print(f"Single output shape: {outputs.shape}")
+    except Exception as e:
+        print("Exception during forward pass:", repr(e))
 
-    # Forward pass through the model
-    output = model(dummy_input)
-
-    # Output shape
-    print("Output shape:", output.shape)
-    print("Expected output shape:", (1, out_channels, 256, 256))
+    # Test backward pass with dummy loss
+    try:
+        out1, out2 = model(image, event)
+        loss = F.mse_loss(out2, image)
+        loss.backward()
+        print("Backward pass successful, loss=", loss.item())
+    except Exception as e:
+        print("Exception during backward pass:", repr(e))
