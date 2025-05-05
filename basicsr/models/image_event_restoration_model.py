@@ -39,7 +39,7 @@ class ImageEventRestorationModel(BaseModel):
             local_rank = os.environ.get('LOCAL_RANK', '0')
             if local_rank == '0':
                 wandb.init(project='promptir')
-                wandb.run.name = '(NAF)EB_NAFNet_refined'
+                wandb.run.name = opt['name']
             self.wandb = True
         else:
             self.wandb = False
