@@ -1,5 +1,5 @@
 # general settings
-name: EB_NAFNet_SEP
+name: EB_NAFNet_SEP2
 model_type: ImageEventRestorationModel
 scale: 1
 num_gpu:  4
@@ -62,7 +62,7 @@ dataset_name: GoPro
 
 # network structures
 network_g:
-  type: NAFNetSEP
+  type: NAFNetSEP2
   width: 64
   enc_blk_nums: [1, 1, 1, 28]
   middle_blk_num: 1
