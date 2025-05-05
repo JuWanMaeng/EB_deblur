@@ -226,21 +226,7 @@ class UNetConvBlock(nn.Module):
             # b, c, h, w = out.shape
             out_edge = self.conv_edge(edge)
             out_motion = self.conv_motion(motion)
-#             print("JINJIN CHECK11111:::::", out.shape, out_edge.shape)
-            '''
-            JINJIN CHECK11111::::: torch.Size([8, 64, 256, 256]) torch.Size([8, 64, 256, 256])
-            JINJIN CHECK11111::::: torch.Size([8, 64, 256, 256]) torch.Size([8, 64, 256, 256])
-            JINJIN CHECK11111::::: torch.Size([8, 128, 128, 128]) torch.Size([8, 128, 128, 128])
-            JINJIN CHECK11111::::: torch.Size([8, 256, 64, 64]) torch.Size([8, 256, 64, 64])
-            JINJIN CHECK11111::::: torch.Size([8, 128, 128, 128]) torch.Size([8, 128, 128, 128])
-            JINJIN CHECK11111::::: torch.Size([8, 256, 64, 64]) torch.Size([8, 256, 64, 64])
-            JINJIN CHECK11111::::: torch.Size([8, 64, 256, 256]) torch.Size([8, 64, 256, 256])
-            JINJIN CHECK11111::::: torch.Size([8, 128, 128, 128]) torch.Size([8, 128, 128, 128])
-            JINJIN CHECK11111::::: torch.Size([8, 256, 64, 64]) torch.Size([8, 256, 64, 64])
-            JINJIN CHECK11111::::: torch.Size([8, 64, 256, 256]) torch.Size([8, 64, 256, 256])
-            JINJIN CHECK11111::::: torch.Size([8, 128, 128, 128]) torch.Size([8, 128, 128, 128])
-            JINJIN CHECK11111::::: torch.Size([8, 256, 64, 64]) torch.Size([8, 256, 64, 64])
-            '''
+
             out = self.image_edge_transformer(self.conv1d(torch.cat([out, out_edge], 1)), event_filter)
             offset = self.image_motion_transformer(out_motion, event_filter)
             #deformable convolutional layer forward passing
