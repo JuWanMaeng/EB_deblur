@@ -113,30 +113,7 @@ class ImageEventRestorationModel(BaseModel):
                 {'params': optim_params_lowlr, 'lr': train_opt['optim_g']['lr'] * ratio}],
                 **train_opt['optim_g']
             )
-        elif optim_type == 'SGD':
-            self.optimizer_g = torch.optim.SGD(
-                [{'params': optim_params},
-                {'params': optim_params_lowlr, 'lr': train_opt['optim_g']['lr'] * ratio}],
-                **train_opt['optim_g']
-            )
-        elif optim_type == 'RMSprop':
-            self.optimizer_g = torch.optim.RMSprop(
-                [{'params': optim_params},
-                {'params': optim_params_lowlr, 'lr': train_opt['optim_g']['lr'] * ratio}],
-                    **train_opt['optim_g']
-                )
-        elif optim_type == 'Adagrad':
-            self.optimizer_g = torch.optim.Adagrad(
-                [{'params': optim_params},
-                {'params': optim_params_lowlr, 'lr': train_opt['optim_g']['lr'] * ratio}],
-                **train_opt['optim_g']
-            )
-        elif optim_type == 'Adamax':
-            self.optimizer_g = torch.optim.Adamax(
-                [{'params': optim_params},
-                {'params': optim_params_lowlr, 'lr': train_opt['optim_g']['lr'] * ratio}],
-            **train_opt['optim_g']
-            )
+
         else:
             raise NotImplementedError(f"Optimizer {optim_type} is not implemented")
 
