@@ -1,5 +1,5 @@
 # general settings
-name: EB_NAFNet_1280
+name: EB_NAFNet_pretrained_1e-7
 model_type: ImageEventRestorationModel
 scale: 1
 num_gpu:  4
@@ -33,7 +33,7 @@ datasets:
     # data loader settings
     use_shuffle: true
     num_worker_per_gpu: 2
-    batch_size_per_gpu: 16 # 4 for 2080, 8 for titan
+    batch_size_per_gpu: 8 # 4 for 2080, 8 for titan
 
     # diff_weight: 0.3
 
@@ -78,7 +78,7 @@ path:
 train:
   optim_g:
     type: AdamW
-    lr: !!float 1e-3
+    lr: !!float 1e-7
     weight_decay: !!float 1e-3
     betas: [0.9, 0.9]
 

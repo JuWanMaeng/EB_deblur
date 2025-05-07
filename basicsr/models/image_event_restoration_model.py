@@ -6,6 +6,7 @@ from os import path as osp
 from tqdm import tqdm
 import torch.nn.functional as F
 import os, wandb
+import torch.nn as nn
 
 from basicsr.models.archs import define_network
 from basicsr.models.base_model import BaseModel
@@ -24,7 +25,7 @@ class ImageEventRestorationModel(BaseModel):
         # define network
         self.net_g = define_network(deepcopy(opt['network_g']))
         self.net_g = self.model_to_device(self.net_g)
-        self.print_network(self.net_g)
+        # self.print_network(self.net_g)
 
         # load pretrained models
         load_path = self.opt['path'].get('pretrain_network_g', None)
@@ -43,6 +44,9 @@ class ImageEventRestorationModel(BaseModel):
             self.wandb = True
         else:
             self.wandb = False
+
+        # self._expand_input_channels(new_in_ch=9)
+        # print('@@@@@ input channel is 3 -> 9 @@@@@')
 
     def init_training_settings(self):
         self.net_g.train()
@@ -381,3 +385,47 @@ class ImageEventRestorationModel(BaseModel):
     def save(self, epoch, current_iter):
         self.save_network(self.net_g, 'net_g', current_iter)
         self.save_training_state(epoch, current_iter)
+
+    def _expand_input_channels(self, new_in_ch: int = 9):
+        """
+        self.net_g.intro 의 in_channels를 기존(in_ch)에서 new_in_ch로 늘립니다.
+        - 기존 3채널 가중치는 보존
+        - 추가된 채널은 기존 채널의 평균값으로 초기화
+        - DDP wrapper가 있을 경우 .module 아래의 intro를 교체
+        """
+        # DDP wrapper 아래에 module이 있으면 unwrapped, 없으면 그대로
+        net = self.net_g.module if hasattr(self.net_g, 'module') else self.net_g
+
+        # 기존 레이어 정보 가져오기
+        old_conv = net.intro
+        in_ch, out_ch = old_conv.in_channels, old_conv.out_channels
+        k_sz, stride, pad = old_conv.kernel_size, old_conv.stride, old_conv.padding
+        bias_flag = old_conv.bias is not None
+
+        # 새 Conv 생성
+        new_conv = nn.Conv2d(
+            in_channels  = new_in_ch,
+            out_channels = out_ch,
+            kernel_size  = k_sz,
+            stride       = stride,
+            padding      = pad,
+            bias         = bias_flag
+        )
+
+        # 가중치 복사 & 초기화
+        with torch.no_grad():
+            # (1) 기존 채널 복사
+            new_conv.weight[:, :in_ch, :, :] = old_conv.weight
+            # (2) 평균으로 나머지 채널 초기화
+            mean_w = old_conv.weight.mean(dim=1, keepdim=True)
+            for i in range(in_ch, new_in_ch):
+                new_conv.weight[:, i:i+1, :, :] = mean_w
+            # (3) bias 복사
+            if bias_flag:
+                new_conv.bias.copy_(old_conv.bias)
+
+        # 원본 레이어와 같은 디바이스로 올리기
+        new_conv = new_conv.to(old_conv.weight.device)
+
+        # 교체
+        net.intro = new_conv
