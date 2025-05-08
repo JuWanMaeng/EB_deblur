@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: basicsr
-Version: 1.2.0+e05d19b
+Version: 1.2.0+cde5de2
 Summary: Open Source Image and Video Super-Resolution Toolbox
 Home-page: https://github.com/xinntao/BasicSR
 Author: Xintao Wang

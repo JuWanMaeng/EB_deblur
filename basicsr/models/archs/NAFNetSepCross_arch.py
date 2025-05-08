@@ -5,12 +5,13 @@ from torchvision.ops import DeformConv2d
 from einops import rearrange
 
 # arch_util 에 정의된 채널‐어텐션 블록들
-from basicsr.models.archs.arch_util import (
+from basicsr.models.archs.NAFNetSepCross_util import (
     LayerNorm2d,
     EdgeAwareSharpening_ChannelAttentionTransformerBlock,
     MotionDrivenScaleAdaptiveDeblurring_ChannelAttentionTransformerBlock
 )
 from basicsr.models.archs.arch_util import EventImage_ChannelAttentionTransformerBlock
+
 
 # ─── 유틸리티 ──────────────────────────────────────────────────────────
 def to_3d(x):
@@ -99,61 +100,84 @@ class NAFEncoder(nn.Module):
             x = down(x)
         return feats  # [f1, f2, f3]
 
-# ─── 전체 NAFNet_cross ───────────────────────────────────────────────────
-class NAFNet_cross(nn.Module):
+class NAFNetSepCross(nn.Module):
+    """
+    NAFNet variant with separate edge & motion fusion at each encoder stage.
+    Assumes the following are already imported/defined:
+      - NAFEncoder
+      - NAFBlock_event
+      - NAFBlock
+      - EdgeAwareSharpening_ChannelAttentionTransformerBlock
+      - MotionDrivenScaleAdaptiveDeblurring_ChannelAttentionTransformerBlock
+      - DeformConv2d (from torchvision.ops)
+    """
     def __init__(self,
                  img_channel=3,
                  evt_channel=6,
                  width=64,
                  enc_blk_nums=[1,1,1],
                  dec_blk_nums=[1,1,1],
-                 middle_blk_num=1,
+                 middle_blk_num=28,
                  dim=64,
                  num_heads=[1,2,4],
                  num_layers=[1,1,1]):
         super().__init__()
-        # 1) 입력 프로젝션
-        self.img_intro    = nn.Conv2d(img_channel, width, 3, padding=1)
-        self.evt_intro    = nn.Conv2d(evt_channel, width, 3, padding=1)
-        self.edge_proj    = nn.Conv2d(2, width, 3, padding=1)
-        self.motion_proj = nn.Conv2d(2, width, 3, padding=1)
-        self.ending       = nn.Conv2d(width, img_channel, 3, padding=1)
 
-        # 2) 이벤트 UNet 인코더
+        # 1) Input projections
+        self.img_intro = nn.Conv2d(img_channel, width, 3, padding=1)
+        self.evt_intro = nn.Conv2d(evt_channel, width, 3, padding=1)
+
+        # 2) Per‐scale edge/motion projections
+        #    scale 1     → width channels
+        #    scale 1/2   → width*2 channels
+        #    scale 1/4   → width*4 channels
+        self.edge_projs = nn.ModuleList([
+            nn.Conv2d(2,      width,   3, padding=1),
+            nn.Conv2d(2,      width*2, 3, padding=1),
+            nn.Conv2d(2,      width*4, 3, padding=1),
+        ])
+        self.motion_projs = nn.ModuleList([
+            nn.Conv2d(2,      width,   3, padding=1),
+            nn.Conv2d(2,      width*2, 3, padding=1),
+            nn.Conv2d(2,      width*4, 3, padding=1),
+        ])
+
+        # 3) “U‐Net” style event encoder
         self.event_encoder = NAFEncoder(enc_blk_nums, width)
 
-        # 3) 스케일별 모듈 정의
+        # 4) Encoder stages: edge‐aware, NAFBlock_event, motion‐driven deform
         self.edge_modules   = nn.ModuleList()
         self.motion_modules = nn.ModuleList()
         self.encoders       = nn.ModuleList()
         self.downs          = nn.ModuleList()
         self.dcns           = nn.ModuleList()
+
         ch = width
         for i, n in enumerate(enc_blk_nums):
+            # a) Edge‐aware sharpening
             self.edge_modules.append(
-                EdgeAwareSharpening_ChannelAttentionTransformerBlock(
-                    dim=ch, num_heads=num_heads[i]
-                )
+                EdgeAwareSharpening_ChannelAttentionTransformerBlock(ch, num_heads[i])
             )
+            # b) Motion‐driven offset predictor
             self.motion_modules.append(
-                MotionDrivenScaleAdaptiveDeblurring_ChannelAttentionTransformerBlock(
-                    dim=ch, num_heads=num_heads[i]
-                )
+                MotionDrivenScaleAdaptiveDeblurring_ChannelAttentionTransformerBlock(ch, num_heads[i])
             )
-            # NAFBlock_event 를 n개 쌓기
+            # c) n × NAFBlock_event
             self.encoders.append(nn.ModuleList([
                 NAFBlock_event(ch, dim, num_heads[i], num_layers[i])
                 for _ in range(n)
             ]))
-            # 다운샘플, DeformConv2d
+            # d) Downsample + deformable conv
             self.downs.append(nn.Conv2d(ch, 2*ch, 2, stride=2))
-            self.dcns.append(DeformConv2d(ch, ch, 3, padding=1, bias=False))
+            self.dcns.append(DeformConv2d(ch, ch, kernel_size=3, padding=1, bias=False))
             ch *= 2
 
-        # 4) Middle + Decoder
+        # 5) Middle “bottleneck” blocks
         self.middle = nn.Sequential(*[NAFBlock(ch) for _ in range(middle_blk_num)])
-        self.ups    = nn.ModuleList()
-        self.decs   = nn.ModuleList()
+
+        # 6) Decoder stages
+        self.ups  = nn.ModuleList()
+        self.decs = nn.ModuleList()
         for n in dec_blk_nums:
             self.ups.append(nn.Sequential(
                 nn.Conv2d(ch, ch*2, 1, bias=False),
@@ -162,23 +186,29 @@ class NAFNet_cross(nn.Module):
             ch //= 2
             self.decs.append(nn.Sequential(*[NAFBlock(ch) for _ in range(n)]))
 
+        # 7) Final RGB projection
+        self.ending = nn.Conv2d(width, img_channel, 3, padding=1)
+
     def forward(self, y):
-        B,C,H,W = y.shape
-        img    = y[:, :3]
-        evt    = y[:, 3:]
-        edge   = evt[:, 2:4]
-        motion = torch.cat([evt[:,0:1], evt[:,-1:]], dim=1)
+        B, C, H, W = y.shape
+        img    = y[:, :3, :, :]
+        evt    = y[:, 3:, :, :]
+        # SCER: take channels 2&3 as edge, 0&5 as motion
+        edge   = evt[:, 2:4, :, :]
+        motion = torch.cat([evt[:, 0:1], evt[:, -1:]], dim=1)
 
-        # 임베딩
-        x          = self.img_intro(img)
-        evt_feat   = self.evt_intro(evt)
-        edge_feat  = self.edge_proj(edge)
-        motion_feat= self.motion_proj(motion)
+        # 1) initial embeddings
+        x           = self.img_intro(img)
+        evt_feat    = self.evt_intro(evt)
 
-        # multi‐scale 이벤트 피쳐
-        e_feats = self.event_encoder(evt_feat) + [None]
+        # 2) multi‐scale event features from U‐Net
+        e_feats = list(self.event_encoder(evt_feat)) + [None]
 
         skips = []
+        edge_feat   = edge
+        motion_feat = motion
+
+        # 3) encoder loop
         for i, (e_mod, m_mod, enc_list, down, dcn, e_f) in enumerate(zip(
             self.edge_modules,
             self.motion_modules,
@@ -187,39 +217,47 @@ class NAFNet_cross(nn.Module):
             self.dcns,
             e_feats
         )):
-            # 1) Edge‐aware
-            x = e_mod(x, e_f, edge_feat)
+            # 3-1) project priors to match channel count
+            ef = self.edge_projs[i](edge_feat)
+            mf = self.motion_projs[i](motion_feat)
 
-            # 2) NAFBlock_event
+            # 3-3) NAFBlock_event
             for blk in enc_list:
                 x = blk(x, e_f)
 
-            # 3) Motion‐driven + DeformConv
-            offset = m_mod(motion_feat, e_f)
-            x = dcn(x, offset)
+            # 3-2) edge‐aware sharpening
+            x = e_mod(x, e_f, ef)
+
+            # 3-4) motion‐driven offset + deform conv
+            offset = m_mod(mf, e_f)
+            x      = dcn(x, offset)
 
             skips.append(x)
             x = down(x)
-            if e_f is not None:
-                e_f = F.interpolate(e_f, 0.5, mode='bilinear', align_corners=False)
-            edge_feat   = F.interpolate(edge_feat, 0.5, mode='bilinear', align_corners=False)
-            motion_feat = F.interpolate(motion_feat, 0.5, mode='bilinear', align_corners=False)
 
-        # middle
+            # 3-5) downsample priors for next scale
+            edge_feat   = F.interpolate(edge_feat,   scale_factor=0.5,
+                                        mode='bilinear', align_corners=False)
+            motion_feat = F.interpolate(motion_feat, scale_factor=0.5,
+                                        mode='bilinear', align_corners=False)
+
+        # 4) middle
         x = self.middle(x)
 
-        # decoder
+        # 5) decoder + skip connections
         for up, dec, skip in zip(self.ups, self.decs, reversed(skips)):
             x = up(x) + skip
             x = dec(x)
 
-        return self.ending(x) + img
+        # 6) final + residual
+        out = self.ending(x) + img
+        return out[..., :H, :W]
 
 # ─── 간단한 디버깅용 main ─────────────────────────────────────────────────
 if __name__ == "__main__":
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    model = NAFNet_cross().to(device).eval()
-    y = torch.randn(2, 9, 256, 256, device=device)
+    model = NAFNetSepCross().to(device).eval()
+    y = torch.randn(8, 9, 256, 256, device=device)
     out = model(y)
     print("out.shape:", out.shape)  # -> [2,3,256,256]
     # backward check

@@ -407,10 +407,7 @@ class EdgeAwareSharpening_ChannelAttentionTransformerBlock(nn.Module):
         event_feat : [B, C, H, W]
         edge_prior : [B, 2, H, W]   ← SCER 채널2,3
         """
-        # 1) project edge_prior → dim
-        e = self.edge_proj(edge_prior)                       # [B, C, H, W]
-        # 2) merge with image
-        x = torch.cat([image_feat, e], dim=1)                # [B, 2C, H, W]
+        x = torch.cat([image_feat, edge_prior], dim=1)                # [B, 2C, H, W]
         x = self.merge_proj(x)                               # [B, C, H, W]
 
         # 3) cross‐attention fusion

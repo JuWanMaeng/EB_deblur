@@ -1,5 +1,5 @@
 # general settings
-name: EB_FFTformer_refined_threshold
+name: EB_FFTformer
 model_type: ImageEventRestorationModel
 scale: 1
 num_gpu:  4
