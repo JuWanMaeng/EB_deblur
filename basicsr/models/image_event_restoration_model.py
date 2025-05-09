@@ -213,8 +213,13 @@ class ImageEventRestorationModel(BaseModel):
                 j = i + m
                 if j >= n:
                     j = n
-
-                pred = self.net_g(self.lq[i:j, :, :, :])  # mini batch all in 
+                b, c, h, w = self.lq[i:j].shape
+                h_n = (32 - h % 32) % 32
+                w_n = (32 - w % 32) % 32
+                in_tensor = F.pad(self.lq[i:j], (0, w_n, 0, h_n), mode='reflect')
+                pred = self.net_g(in_tensor)
+                pred = pred[:, :, :h, :w]
+                # pred = self.net_g(self.lq[i:j, :, :, :])  # mini batch all in 
             
                 if isinstance(pred, list):
                     pred = pred[-1]

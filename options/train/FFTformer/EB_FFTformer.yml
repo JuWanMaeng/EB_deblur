@@ -1,5 +1,5 @@
 # general settings
-name: EB_FFTformer
+name: EB_FFTformerSep
 model_type: ImageEventRestorationModel
 scale: 1
 num_gpu:  4
@@ -62,8 +62,8 @@ dataset_name: GoPro
 
 # network structures
 network_g:
-  type: fftformer
-  inp_channels: 9
+  type: FFTformerSep
+  inp_channels: 3
   out_channels: 3
   dim: 48
   num_blocks: [6,6,12]
@@ -107,7 +107,7 @@ train:
 
 # validation settings
 val:
-  val_freq: !!float 5000
+  val_freq: !!float 20000
   save_img: false
 
 
@@ -124,7 +124,7 @@ val:
 # logging settings
 logger:
   print_freq: 1000
-  save_checkpoint_freq: !!float 5000
+  save_checkpoint_freq: !!float 20000
   use_tb_logger: true
   wandb:
     project: ~
