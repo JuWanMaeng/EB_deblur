@@ -82,10 +82,10 @@ class NAFBlock(nn.Module):
 
 class NAFNet(nn.Module):
 
-    def __init__(self, img_channel=3, width=16, middle_blk_num=1, enc_blk_nums=[], dec_blk_nums=[]):
+    def __init__(self, img_channel=3, width=64, middle_blk_num=1, enc_blk_nums=[1,1,1,28], dec_blk_nums=[1,1,1,1]):
         super().__init__()
 
-        self.intro = nn.Conv2d(in_channels=3, out_channels=width, kernel_size=3, padding=1, stride=1, groups=1,
+        self.intro = nn.Conv2d(in_channels=9, out_channels=width, kernel_size=3, padding=1, stride=1, groups=1,
                               bias=True)
         self.ending = nn.Conv2d(in_channels=width, out_channels=img_channel, kernel_size=3, padding=1, stride=1, groups=1,
                               bias=True)
@@ -166,3 +166,15 @@ class NAFNet(nn.Module):
         mod_pad_w = (self.padder_size - w % self.padder_size) % self.padder_size
         x = F.pad(x, (0, mod_pad_w, 0, mod_pad_h))
         return x
+
+
+# ─── 간단한 디버깅용 main ─────────────────────────────────────────────────
+if __name__ == "__main__":
+    device =  'cpu'
+    model = NAFNet()
+    y = torch.randn(8, 9, 256, 256, device=device)
+    out = model(y)
+    print("out.shape:", out.shape)  # -> [2,3,256,256]
+    # backward check
+    out.mean().backward()
+    print("OK")  

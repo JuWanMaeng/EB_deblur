@@ -1,5 +1,5 @@
 # general settings
-name: EB_NAFNetSepCrossDecoder_1e-3
+name: EB_NAFNetSepCross_GT
 model_type: ImageEventRestorationModel
 scale: 1
 num_gpu:  4
@@ -62,10 +62,10 @@ dataset_name: GoPro
 
 # network structures
 network_g:
-  type: NAFNetSepCrossDecoder
+  type: NAFNetSepCross
   width: 64
   enc_blk_nums: [1, 1, 1]
-  middle_blk_num: 1
+  middle_blk_num: 28
   dec_blk_nums: [1, 1, 1]
 
 # path
