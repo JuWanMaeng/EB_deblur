@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torchvision.ops import DeformConv2d
 from einops import rearrange
 from torchvision.ops import deform_conv2d
 import math
@@ -171,31 +170,33 @@ class NAFBlock(nn.Module):
         return y + x * self.gamma
 
 class EMNAFBlock(nn.Module):
-    def __init__(self, c, num_heads, DW_Expand=2, FFN_Expand=2, drop_out_rate=0.):
+    def __init__(self, c, num_heads):
         super().__init__()
 
         self.NAFBlock = NAFBlock(c)
 
         self.edge = EMAttentionTransformerBlock(c, num_heads)
-        self.motoin = MotionDeformableTransformerBlock(c, num_heads)
+        # self.motion= MotionDeformableTransformerBlock(c, num_heads)
 
-        self.merge_conv = nn.Conv2d(c * 2, c, kernel_size=1, bias=True)
+        # self.merge_conv = nn.Conv2d(c * 2, c, kernel_size=1, bias=True)
 
 
     def forward(self, inp, edge_f, motion_f):
         hi = self.NAFBlock(inp)
 
-        edge_att = self.edge(hi,edge_f)
-        motion_att = self.motoin(hi,motion_f)
+        edge_att = self.edge(hi, edge_f)
 
-        fused = torch.cat([edge_att, motion_att], dim=1)  
-        fused = self.merge_conv(fused)                   
+        # edge_att = self.edge(hi,edge_f)
+        # motion_att = self.motion(edge_att,motion_f)
+
+        # fused = torch.cat([edge_att, motion_att], dim=1)  
+        # fused = self.merge_conv(fused)                   
         # 4) residual
-        return fused + hi
+        return edge_att + hi
 
 
 
-class NAFNetSepEM_Parallel(nn.Module):
+class NAFNetSepEM_Direct(nn.Module):
     def __init__(self,
                  img_channel=3,
                  width=64,
@@ -206,7 +207,7 @@ class NAFNetSepEM_Parallel(nn.Module):
         super().__init__()
 
         # 1) Input projections
-        self.img_intro = nn.Conv2d(img_channel, width, 3, padding=1)
+        self.img_intro = nn.Conv2d(9, width, 3, padding=1)
 
         # 2) Per‐scale edge/motion projections
         #    scale 1     → width channels
@@ -267,6 +268,7 @@ class NAFNetSepEM_Parallel(nn.Module):
                 )
             )
             chan = chan // 2
+
             self.decoders.append(
                 nn.Sequential(
                     *[NAFBlock(chan) for _ in range(num)]
@@ -285,7 +287,10 @@ class NAFNetSepEM_Parallel(nn.Module):
         motion = torch.cat([evt[:, 0:1, :, :], evt[:, -1:, :, :]], dim=1)
 
         # 1) initial embeddings
-        x           = self.img_intro(img)
+        # x           = self.img_intro(img)
+        x = self.img_intro(y)
+
+
         edge_feat   = edge
         motion_feat = motion
 
@@ -307,8 +312,10 @@ class NAFNetSepEM_Parallel(nn.Module):
             edge_feat   = F.interpolate(edge_feat,   scale_factor=0.5, mode='bilinear', align_corners=False)
             motion_feat = F.interpolate(motion_feat, scale_factor=0.5, mode='bilinear', align_corners=False)
 
+
         # 3) Middle “bottleneck”
         x = self.middle(x)
+
 
         # 4) Decoder
         for up, dec in zip(self.ups, self.decoders):
@@ -317,15 +324,14 @@ class NAFNetSepEM_Parallel(nn.Module):
             x = x + skip
             x = dec(x)
 
+
         # 5) Final projection + residual
         out = self.ending(x) + img
         return out[..., :H, :W]
-
-        
 # ─── 간단한 디버깅용 main ─────────────────────────────────────────────────
 if __name__ == "__main__":
     device ='cuda'
-    model = NAFNetSepEM_Parallel().to(device).eval()
+    model = NAFNetSepEM_Direct().to(device).eval()
     y = torch.randn(8, 9, 256, 256, device=device)
     out = model(y)
     print("out.shape:", out.shape)  # -> [2,3,256,256]

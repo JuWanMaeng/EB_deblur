@@ -1,15 +1,24 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torchvision.ops import DeformConv2d
 from einops import rearrange
+from torchvision.ops import deform_conv2d
+import math
 
 # arch_util 에 정의된 채널‐어텐션 블록들
 from basicsr.models.archs.NAFNetSepCross_util import (
     LayerNorm2d,LayerNorm, Mutual_Attention, Mlp
 )
+
 # event encoder를 사용하지 않고 edge, motion을 blur feature와 cross attention
-    
+def to_3d(x):
+    return rearrange(x, 'b c h w -> b (h w) c')
+
+
+def to_4d(x, h, w):
+    return rearrange(x, 'b (h w) c -> b c h w', h=h, w=w)
+
+
 class EMAttentionTransformerBlock(nn.Module):
     def __init__(self, dim, num_heads, ffn_expansion_factor=2, bias=False, LayerNorm_type='WithBias'):
         super().__init__()
@@ -38,6 +47,66 @@ class EMAttentionTransformerBlock(nn.Module):
         fused = rearrange(flat, 'b (h w) c -> b c h w', h=H, w=W)
 
         return fused
+    
+class MotionDeformableTransformerBlock(nn.Module):
+    def __init__(self, dim, num_heads, ffn_expansion_factor=2, bias=False, LayerNorm_type='WithBias'):
+        super().__init__()
+        self.norm1_motion = LayerNorm(dim, LayerNorm_type)
+        self.norm1_image_feat  = LayerNorm(dim, LayerNorm_type)
+        self.attn         = Mutual_Attention(dim, num_heads, bias)
+
+        # offset 예측용 conv (2 * kH * kW 채널을 뽑아야 함)
+        self.conv_offset  = nn.Conv2d(dim, 18, kernel_size=3, padding=1, bias=True)
+        
+        self.norm2 = nn.LayerNorm(dim)
+        mlp_hidden = int(dim * ffn_expansion_factor)
+        self.ffn   = Mlp(dim, mlp_hidden, dim, act_layer=nn.GELU, drop=0.)
+
+        self.deform_weight = nn.Parameter(torch.empty(dim, dim, 3, 3))
+        nn.init.kaiming_uniform_(self.deform_weight, a=math.sqrt(5))
+
+    def forward(self, image_feat, motion): 
+        # motion, event: [B, C, H, W]
+
+        b, c, h, w = motion.shape
+
+        # cross‐attention
+        feat = self.attn(self.norm1_image_feat(image_feat), self.norm1_motion(motion))  # [B, C, H, W]
+
+        flat = to_3d(feat)                                  # [B, H*W, C]
+        flat = flat + self.ffn(self.norm2(flat))            # Residual MLP
+        feat = to_4d(flat, h, w)                            # [B, C, H, W]
+
+        # offset 예측
+        offset = self.conv_offset(feat)                     # [B, 2*kH*kW, H, W]
+
+        out = deform_conv2d(
+                input=image_feat,
+                offset=offset,
+                weight=self.deform_weight,
+                bias=None,
+                padding=1
+                )
+        
+        return out
+
+class Mlp(nn.Module):
+    def __init__(self, in_features, hidden_features=None, out_features=None, act_layer=nn.GELU, drop=0.):
+        super().__init__()
+        out_features = out_features or in_features
+        hidden_features = hidden_features or in_features
+        self.fc1 = nn.Linear(in_features, hidden_features)
+        self.act = act_layer()
+        self.fc2 = nn.Linear(hidden_features, out_features)
+        self.drop = nn.Dropout(drop)
+
+    def forward(self, x):
+        x = self.fc1(x)
+        x = self.act(x)
+        x = self.drop(x)
+        x = self.fc2(x)
+        x = self.drop(x)
+        return x
 
 # ─── SimpleGate & 기본 NAF 블록 ────────────────────────────────────────
 class SimpleGate(nn.Module):
@@ -101,31 +170,31 @@ class NAFBlock(nn.Module):
         return y + x * self.gamma
 
 class EMNAFBlock(nn.Module):
-    def __init__(self, c, num_heads, DW_Expand=2, FFN_Expand=2, drop_out_rate=0.):
+    def __init__(self, c, num_heads):
         super().__init__()
 
         self.NAFBlock = NAFBlock(c)
 
         self.edge = EMAttentionTransformerBlock(c, num_heads)
-        self.motoin = EMAttentionTransformerBlock(c, num_heads)
+        self.motion= MotionDeformableTransformerBlock(c, num_heads)
 
-        self.merge_conv = nn.Conv2d(c * 2, c, kernel_size=1, bias=True)
+        # self.merge_conv = nn.Conv2d(c * 2, c, kernel_size=1, bias=True)
 
 
     def forward(self, inp, edge_f, motion_f):
         hi = self.NAFBlock(inp)
 
         edge_att = self.edge(hi,edge_f)
-        motion_att = self.motoin(hi,motion_f)
+        motion_att = self.motion(edge_att,motion_f)
 
-        fused = torch.cat([edge_att, motion_att], dim=1)  
-        fused = self.merge_conv(fused)                   
+        # fused = torch.cat([edge_att, motion_att], dim=1)  
+        # fused = self.merge_conv(fused)                   
         # 4) residual
-        return fused + hi
+        return motion_att + hi
 
 
 
-class NAFNetSepEM(nn.Module):
+class NAFNetSepEM_Direct_Decoder(nn.Module):
     def __init__(self,
                  img_channel=3,
                  width=64,
@@ -136,7 +205,7 @@ class NAFNetSepEM(nn.Module):
         super().__init__()
 
         # 1) Input projections
-        self.img_intro = nn.Conv2d(img_channel, width, 3, padding=1)
+        self.img_intro = nn.Conv2d(9, width, 3, padding=1)
 
         # 2) Per‐scale edge/motion projections
         #    scale 1     → width channels
@@ -151,6 +220,17 @@ class NAFNetSepEM(nn.Module):
             nn.Conv2d(2,      width,   3, padding=1),
             nn.Conv2d(2,      width*2, 3, padding=1),
             nn.Conv2d(2,      width*4, 3, padding=1),
+        ])
+
+        self.edge_projs_decoders = nn.ModuleList([
+            nn.Conv2d(2,      width*4,   3, padding=1),
+            nn.Conv2d(2,      width*2, 3, padding=1),
+            nn.Conv2d(2,      width, 3, padding=1),
+        ])
+        self.motion_projs_decoders = nn.ModuleList([
+            nn.Conv2d(2,      width*4,   3, padding=1),
+            nn.Conv2d(2,      width*2, 3, padding=1),
+            nn.Conv2d(2,      width, 3, padding=1),
         ])
 
         # 4) Encoder stages: edge‐aware, NAFBlock_event, motion‐driven deform
@@ -188,7 +268,7 @@ class NAFNetSepEM(nn.Module):
         # 6) Decoder stages
         self.ups  = nn.ModuleList()
         self.decoders = nn.ModuleList()
-
+        decoder_flag = 3
         for num in dec_blk_nums:
             self.ups.append(
                 nn.Sequential(
@@ -197,11 +277,20 @@ class NAFNetSepEM(nn.Module):
                 )
             )
             chan = chan // 2
-            self.decoders.append(
-                nn.Sequential(
-                    *[NAFBlock(chan) for _ in range(num)]
+            if decoder_flag == 3:
+                self.decoders.append(
+                    nn.Sequential(
+                        *[NAFBlock(chan) for _ in range(num)]
+                    )
                 )
-            )
+                decoder_flag = 2
+            else:
+                self.decoders.append(
+                    nn.Sequential(
+                        *[EMNAFBlock(chan, num_heads[decoder_flag]) for _ in range(num)]
+                    )
+                )
+                decoder_flag -= 1
 
         # 7) Final RGB projection
         self.ending = nn.Conv2d(width, img_channel, 3, padding=1)
@@ -215,9 +304,16 @@ class NAFNetSepEM(nn.Module):
         motion = torch.cat([evt[:, 0:1, :, :], evt[:, -1:, :, :]], dim=1)
 
         # 1) initial embeddings
-        x           = self.img_intro(img)
+        # x           = self.img_intro(img)
+        x = self.img_intro(y)
+
+
         edge_feat   = edge
         motion_feat = motion
+
+        edge_feats_decoder=[]
+        motion_feats_decoder = []
+
 
         skips = []
         # 2) Encoder
@@ -225,6 +321,8 @@ class NAFNetSepEM(nn.Module):
             if len(enc) == 1 and isinstance(enc[0], EMNAFBlock):
                 ef = self.edge_projs[i](edge_feat)
                 mf = self.motion_projs[i](motion_feat)
+                edge_feats_decoder.append(edge_feat)
+                motion_feats_decoder.append(motion_feat)
                 x = enc[0](x, ef, mf)
             else:
                 # 일반 NAFBlock sequence
@@ -237,23 +335,37 @@ class NAFNetSepEM(nn.Module):
             edge_feat   = F.interpolate(edge_feat,   scale_factor=0.5, mode='bilinear', align_corners=False)
             motion_feat = F.interpolate(motion_feat, scale_factor=0.5, mode='bilinear', align_corners=False)
 
+
         # 3) Middle “bottleneck”
         x = self.middle(x)
 
+        edge_feat   = edge
+        motion_feat = motion
+        i = 0
         # 4) Decoder
         for up, dec in zip(self.ups, self.decoders):
             x = up(x)
             skip = skips.pop()   # 마지막 skip 꺼내서
             x = x + skip
-            x = dec(x)
+            if isinstance(dec[0], EMNAFBlock):
+                edge_feat = edge_feats_decoder.pop()
+                motion_feat = motion_feats_decoder.pop()
+
+                ef = self.edge_projs_decoders[i](edge_feat)
+                mf = self.motion_projs_decoders[i](motion_feat)
+                x = dec[0](x,ef,mf)
+                i+=1
+            else:
+                x = dec(x)
+
 
         # 5) Final projection + residual
         out = self.ending(x) + img
         return out[..., :H, :W]
 # ─── 간단한 디버깅용 main ─────────────────────────────────────────────────
 if __name__ == "__main__":
-    device ='cpu'
-    model = NAFNetSepEM().to(device).eval()
+    device ='cuda'
+    model = NAFNetSepEM_Direct().to(device).eval()
     y = torch.randn(8, 9, 256, 256, device=device)
     out = model(y)
     print("out.shape:", out.shape)  # -> [2,3,256,256]

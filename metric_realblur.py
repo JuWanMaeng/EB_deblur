@@ -108,7 +108,7 @@ def proc(filename):
 with open('/workspace/FFTformer/datasets/event_gen/realblur_j_gt.txt', 'r') as file:
     gt_list = [line.strip() for line in file]
 
-out_mother_path = '/workspace/FFTformer/results/RealBlur-J/EFNet'
+out_mother_path = '/workspace/FFTformer/results/RealBlur-J/NAFNetDirect'
 path_list = []
 for gt_path in gt_list:
     out_path = gt_path.replace('gt','blur')

@@ -13,15 +13,10 @@ import torch.nn as nn
 import torch
 import torch.nn.functional as F
 import Motion_Deblurring.utils as utils
+from basicsr.models.archs.NAFNetSepDirectDecoder_arch import NAFNetSepEM_Direct
 
-from natsort import natsorted
-from glob import glob
-from basicsr.models.archs.NAFNet_arch import NAFNet
-from basicsr.models.archs.FFTformer_arch import fftformer
-from basicsr.models.archs.fftformer_cross_arch import fftformer_cross
-from basicsr.models.archs.EFNet_arch import EFNet
 from skimage import img_as_ubyte
-from pdb import set_trace as stx
+
 from metric import caculate_PSNR,caculate_PSNR_from_tensor
 from val_utils import AverageMeter
 from ptlflow.utils import flow_utils
@@ -32,15 +27,15 @@ def main():
     parser = argparse.ArgumentParser(description='Single Image Motion Deblurring using Restormer')
 
     parser.add_argument('--result_dir', default='./results/RealBlur-J', type=str, help='Directory for results')
-    parser.add_argument('--weights', default='/workspace/data/FFTformer/experiments/EB_NAFNet_NAFVAE_64/models/net_g_160000.pth', type=str, help='Path to weights')
-    parser.add_argument('--dataset', default='EFNet', type=str, help='Test Dataset') # ['GoPro', 'HIDE', 'RealBlur_J', 'RealBlur_R']
+    parser.add_argument('--weights', default='/workspace/FFTformer/pretrain_model/Direct.pth', type=str, help='Path to weights')
+    parser.add_argument('--dataset', default='NAFNetDirect', type=str, help='Test Dataset') # ['GoPro', 'HIDE', 'RealBlur_J', 'RealBlur_R']
 
     args = parser.parse_args()
 
     ####### Load yaml #######
     # yaml_file = '/workspace/FFTformer/options/test/EB_FFTformer.yml'
     # yaml_file = '/workspace/FFTformer/options/test/EB_NAFNet.yml'
-    yaml_file = 'options/test/EB_NAFNet.yml'
+    yaml_file = '/workspace/FFTformer/options/train/NAFNet/EB_NAFNetSep.yml'
     import yaml
 
     try:
@@ -53,7 +48,7 @@ def main():
     s = x['network_g'].pop('type')
     ##########################
 
-    model_restoration = NAFNet(**x['network_g'])
+    model_restoration = NAFNetSepEM_Direct(**x['network_g'])
     # model_restoration = fftformer(**x['network_g'])
     # model_restoration = EFNet(**x['network_g'])
 
@@ -97,11 +92,11 @@ def main():
             sharp_path = file_.replace('blur', 'gt')
             sharp_img = np.float32(utils.load_img(sharp_path))/255.
 
-            event_path = file_.replace('blur','event_NAFVAE')
+            event_path = file_.replace('blur','event')
             event_path = event_path.replace('.png','.npy')
             tmp = event_path.split('/')[-1]
             event_path = event_path.split('/')[:-1]
-            tmp = tmp.replace('event_NAFVAE', 'event')
+            tmp = tmp.replace('event', 'event')
             event_path = '/' + os.path.join(os.path.join(*event_path) , tmp)
 
             event = np.load(event_path)

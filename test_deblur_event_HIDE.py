@@ -14,12 +14,9 @@ import torch
 import torch.nn.functional as F
 import Motion_Deblurring.utils as utils
 
-from natsort import natsorted
-from glob import glob
+
 from basicsr.models.archs.NAFNet_arch import NAFNet
-from basicsr.models.archs.FFTformer_arch import fftformer
-from basicsr.models.archs.fftformer_cross_arch import fftformer_cross
-from basicsr.models.archs.EFNet_arch import EFNet
+from basicsr.models.archs.NAFNetSepDirectDecoder_arch import NAFNetSepEM_Direct
 from skimage import img_as_ubyte
 from pdb import set_trace as stx
 from metric import caculate_PSNR,caculate_PSNR_from_tensor
@@ -32,14 +29,14 @@ def main():
     parser = argparse.ArgumentParser(description='Single Image Motion Deblurring using Restormer')
 
     parser.add_argument('--result_dir', default='./results/HIDE', type=str, help='Directory for results')
-    parser.add_argument('--weights', default='/workspace/data/FFTformer/experiments/EB_NAFNet_NAFVAE_64/models/net_g_160000.pth', type=str, help='Path to weights')
-    parser.add_argument('--dataset', default='NAFNet_NAFVAE', type=str, help='Test Dataset') # ['GoPro', 'HIDE', 'RealBlur_J', 'RealBlur_R']
+    parser.add_argument('--weights', default='/workspace/FFTformer/pretrain_model/Direct.pth', type=str, help='Path to weights')
+    parser.add_argument('--dataset', default='NAFNetDirect', type=str, help='Test Dataset') # ['GoPro', 'HIDE', 'RealBlur_J', 'RealBlur_R']
 
     args = parser.parse_args()
 
     ####### Load yaml #######
     # yaml_file = '/workspace/FFTformer/options/test/EB_FFTformer.yml'
-    yaml_file = '/workspace/FFTformer/options/test/EB_NAFNet.yml'
+    yaml_file = '/workspace/FFTformer/options/train/NAFNet/EB_NAFNetSep.yml'
     # yaml_file = '/workspace/FFTformer/options/test/EFNet_gen.yml'
     import yaml
 
@@ -53,7 +50,7 @@ def main():
     s = x['network_g'].pop('type')
     ##########################
 
-    model_restoration = NAFNet(**x['network_g'])
+    model_restoration = NAFNetSepEM_Direct(**x['network_g'])
     # model_restoration = fftformer(**x['network_g'])
     # model_restoration = EFNet(**x['network_g'])
 
@@ -73,7 +70,7 @@ def main():
 
     
     files = []
-    with open('/workspace/FFTformer/datasets/event_gen/HIDE_NAFVAE.txt', 'r') as file:
+    with open('/workspace/FFTformer/datasets/event_gen/HIDE.txt', 'r') as file:
         for line in file:
             files.append(line.strip())
     print(len(files))
@@ -159,5 +156,5 @@ def main():
 
 
 if __name__ == '__main__':
-    os.environ['CUDA_VISIBLE_DEVICES']='2'
+    os.environ['CUDA_VISIBLE_DEVICES']='0'
     main()

@@ -1,5 +1,5 @@
 # general settings
-name: EB_NAFNetSepCross_GT
+name: EB_NAFNetSepCross_Direct_1e-3_Concat_OnlyEdge
 model_type: ImageEventRestorationModel
 scale: 1
 num_gpu:  4
@@ -9,7 +9,6 @@ datasets:
   train:
     name: gopro-h5-train
     type: H5ImageDataset
-
     # dataroot: ./datasets/GoPro_scer/train
     dataroot: /workspace/data/GOPRO/train
 
@@ -62,11 +61,11 @@ dataset_name: GoPro
 
 # network structures
 network_g:
-  type: NAFNetSepCross
+  type: NAFNetSepEM_Direct
   width: 64
-  enc_blk_nums: [1, 1, 1]
-  middle_blk_num: 28
-  dec_blk_nums: [1, 1, 1]
+  enc_blk_nums: [1, 1, 1, 28]
+  middle_blk_num: 1
+  dec_blk_nums: [1, 1, 1, 1]
 
 # path
 path:
@@ -99,7 +98,7 @@ train:
 
 # validation settings
 val:
-  val_freq: !!float 5000
+  val_freq: !!float 10000
   save_img: false
 
 

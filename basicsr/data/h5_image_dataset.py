@@ -122,7 +122,7 @@ class H5ImageDataset(data.Dataset):
         self.transforms={}
         self.mean = opt['mean'] if 'mean' in opt else None
         self.std = opt['std'] if 'std' in opt else None
-        self.threshold = 0.01
+
 
 
         if self.opt['norm_voxel'] is not None:
@@ -177,8 +177,8 @@ class H5ImageDataset(data.Dataset):
             frame_gt = self.get_gt_frame(index)
             frame_gt = self.transform_frame(frame_gt, seed, transpose_to_CHW=False)
 
-        gen_event = self.get_voxel(index)  
-        gen_event = self.transform_voxel(gen_event, seed, transpose_to_CHW=False)
+        gen_event = self.get_gen_event(index)  
+        # gen_event = self.transform_voxel(gen_event, seed, transpose_to_CHW=False)
 
         voxel = self.get_voxel(index)
         voxel = self.transform_voxel(voxel,seed,transpose_to_CHW=False)
@@ -190,9 +190,9 @@ class H5ImageDataset(data.Dataset):
                 normalize(frame_gt, self.mean, self.std, inplace=True)
 
         if self.return_gen_event:
-            # gen_event = torch.from_numpy(gen_event)
-            # item['gen_event'] = self.transform_gen_event(gen_event, seed)
-            item['gen_event'] = gen_event
+            gen_event = torch.from_numpy(gen_event)
+            item['gen_event'] = self.transform_gen_event(gen_event, seed)
+            # item['gen_event'] = gen_event
         if self.return_frame:
             item['frame'] = frame
         if self.return_gt_frame:

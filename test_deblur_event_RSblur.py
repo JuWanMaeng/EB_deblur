@@ -17,14 +17,12 @@ import Motion_Deblurring.utils as utils
 from natsort import natsorted
 from glob import glob
 from basicsr.models.archs.NAFNet_arch import NAFNet
-from basicsr.models.archs.FFTformer_arch import fftformer
-from basicsr.models.archs.fftformer_cross_arch import fftformer_cross
+
 from basicsr.models.archs.EFNet_arch import EFNet
 from skimage import img_as_ubyte
-from pdb import set_trace as stx
 from metric import caculate_PSNR,caculate_PSNR_from_tensor
 from val_utils import AverageMeter
-from ptlflow.utils import flow_utils
+from basicsr.models.archs.NAFNetSepDirectDecoder_arch import NAFNetSepEM_Direct
 
 
 
@@ -40,7 +38,7 @@ def main():
     ####### Load yaml #######
     # yaml_file = '/workspace/FFTformer/options/test/EB_FFTformer.yml'
     # yaml_file = '/workspace/FFTformer/options/test/EB_NAFNet.yml'
-    yaml_file = '/workspace/FFTformer/options/test/EFNet_gen.yml'
+    yaml_file = '/workspace/FFTformer/options/train/NAFNet/EB_NAFNetSep.yml'
     import yaml
 
     try:
@@ -54,7 +52,8 @@ def main():
     ##########################
     # model_restoration = NAFNet(**x['network_g'])
     # model_restoration = fftformer(**x['network_g'])
-    model_restoration = EFNet(**x['network_g'])
+    # model_restoration = EFNet(**x['network_g'])
+    model_restoration = NAFNetSepEM_Direct(**x['network_g'])
 
     checkpoint = torch.load(args.weights)
     model_restoration.load_state_dict(checkpoint['params'])
