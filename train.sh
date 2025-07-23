@@ -1,2 +1,4 @@
-python setup.py develop --no_cuda_ext
-python -m torch.distributed.launch --nproc_per_node=4 --master_port=4321 basicsr/train_EB.py -opt /workspace/FFTformer/options/train/NAFNet/EB_NAFNetSep.yml --launcher pytorch
+# python setup.py develop --no_cuda_ext
+torchrun --nproc_per_node=2 --master_port=5431 basicsr/train_EB.py \
+    -opt /workspace/FFTformer/options/train/Restormer/Restormer.yml \
+    --launcher pytorch

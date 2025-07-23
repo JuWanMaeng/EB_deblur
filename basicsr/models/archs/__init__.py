@@ -17,7 +17,6 @@ _arch_modules = [
     for file_name in arch_filenames
 ]
 
-
 def dynamic_instantiation(modules, cls_type, opt):
     """Dynamically instantiate class.
 
